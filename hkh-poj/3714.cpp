@@ -14,7 +14,7 @@ const int N = 100010;//比100000略大，保证稳定性
 struct Node
 {
     long long x, y;//储存坐标
-    int id;//标记信息，用于判定点是否相同
+    int id;//标记信息，用于判定点集
     Node(long long x = 0, long long y = 0, int id = 0) : x(x), y(y), id(id) {}
     const bool operator<(const Node A) const //重载比较符用于直接调用sort函数
     {
@@ -52,7 +52,7 @@ double solve(int l, int r)
             if (node[j].x - node[i].x > d)
                 break;
             double tmp = dis(i, j);
-            //比较距离
+            //比较两不同点集距离
             if (node[i].id != node[j].id && tmp < d)
                 d = tmp;
         }
