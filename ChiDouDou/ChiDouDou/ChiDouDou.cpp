@@ -946,10 +946,6 @@ namespace Test
 		if (ans > 20) tmp = -1;//如果太远就呆在原地
 		return tmp;
 	}
-	void test()
-	{
-
-	}
 }
 int main()
 {
