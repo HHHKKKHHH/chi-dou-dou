@@ -1013,9 +1013,7 @@ namespace Helpers
 int main()
 {
 	Pacman::GameField gameField;
-	string data, globalData; // 这是回合之间可以传递的信息
-							 // 如果在本地调试，有input.txt则会读取文件内容作为输入
-							 // 如果在平台上，则不会去检查有无input.txt
+	string data, globalData; 
 	int myID = gameField.ReadInput("input.txt", data, globalData); // 输入，并获得自己ID
 	srand(Pacman::seed + myID);
 #ifdef _BOTZONE_ONLINE
