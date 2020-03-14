@@ -968,7 +968,7 @@ namespace Helpers
 
 
 	void LocalPlay
-	(Pacman::GameField& gameField, int myID)
+	(Pacman::GameField& gameField, int myID,int countLimit)
 	{
 		int count = 0, myAct = -1;
 		while (true)
@@ -989,7 +989,7 @@ namespace Helpers
 			bool hasNext = gameField.NextTurn();
 			count++;
 			//限制下最大回合数
-			if (count >= 20) {
+			if (count >= countLimit) {
 				break;
 			}
 			if (!hasNext)
@@ -1028,7 +1028,7 @@ int main()
 	gameField.WriteOutput((Pacman::Direction)(Ans), "hohoho", data, globalData);
 #else
 	//调试用，本地模拟
-	Helpers::LocalPlay(gameField, myID);
+	Helpers::LocalPlay(gameField, myID,20);
 #endif
 
 
