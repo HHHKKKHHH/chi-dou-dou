@@ -817,45 +817,181 @@ namespace Pacman
 	bool GameField::constructed = false;
 }
 
+
+
+namespace Bot
+{
+	int vis[20][20] = {};//是否访问过
+	int distance[20][20][2] = {};//距离，dis[x][y][0]表示当前点到(x,y)的距离，dis[x][y][1]表示当前点到(x,y)走的第一步的方向
+	int shootData[4] = {0,0,0,0};//记录当前位置四个方向上能打到的人数，排序：上 右 下 左
+	struct T
+	{
+		int x, y;
+		T() {}
+		T(int x, int y) :x(x), y(y) {}
+	};
+	queue <T>q;
+	void BFSd(Pacman::GameField& gameField, int myID, int nowx, int nowy)//BFS遍历图上所有点，求出距离
+	{
+		while (!q.empty()) q.pop();
+		memset(vis, 0, sizeof(vis));
+		for (int i = 0; i < 20; i++)
+			for (int j = 0; j < 20; j++)
+			{
+				distance[i][j][0] =  0x3fff;
+				distance[i][j][1] = -1;
+			}
+		vis[nowx][nowy] = 1;
+		q.push(T(nowx, nowy));
+		distance[nowx][nowy][0] = 0;
+		T u, v;
+		while (!q.empty())
+		{
+			u = q.front();
+			q.pop();
+			for (int i = 0; i < 4; i++)
+			{
+				v.x = u.x + Pacman::dy[i];
+				v.y = u.y + Pacman::dx[i];
+				//边界判定
+				if (v.x < 0) v.x += gameField.height;
+				if (v.x >= gameField.height) v.x -= gameField.height;
+				if (v.y < 0) v.y += gameField.width;
+				if (v.y >= gameField.width) v.y -= gameField.width;
+
+				//(u.x,u.y)到(v.x,v.y)方向上没有墙，(v.x,v.y)不是豆子产生器，(v.x,v.y)没走过
+				if (!(gameField.fieldStatic[u.x][u.y] & Pacman::direction2OpposingWall[(Pacman::Direction)(i)]) 
+					&& !(gameField.fieldStatic[v.x][v.y] & Pacman::generator) 
+					&& !vis[v.x][v.y])
+					
+				{
+					//判断是不是有个坏家伙在这个方向上，有的话设成死路
+					bool hasBadguy = false;
+					if (gameField.fieldContent[v.x][v.y] & Pacman::playerMask)
+						for (int player = 0; player < MAX_PLAYER_COUNT; player++)
+							if (gameField.fieldContent[v.x][v.y] & Pacman::playerID2Mask[player])
+							{
+								if (gameField.players[player].strength > gameField.players[myID].strength) {
+									//有个坏家伙则往其他方向
+									hasBadguy = true;
+								}
+							}
+					if (hasBadguy) continue;
+					q.push(v);
+					vis[v.x][v.y] = 1;
+					distance[v.x][v.y][0] = distance[u.x][u.y][0] + 1;
+					if (u.x == nowx && u.y == nowy) distance[v.x][v.y][1] = i;//起始点方向记录
+					else distance[v.x][v.y][1] = distance[u.x][u.y][1];//传递方向
+				}
+			}
+		}
+	}
+	int calc(Pacman::GameField& gameField, int myID)
+	{
+		int infDis = 0x3fff;
+		int final = -1;
+		Pacman::Player& x = gameField.players[myID];
+		BFSd(gameField, myID, x.row, x.col);
+		int douDis = infDis, douDir = -1;
+		//枚举图上所有点找最近的豆子
+		for (int i = 0; i < gameField.height; i++)
+			for (int j = 0; j < gameField.width; j++)
+			{
+				if ((gameField.fieldContent[i][j] & Pacman::smallFruit)|| (gameField.fieldContent[i][j] & Pacman::largeFruit))
+					if (douDis > distance[i][j][0])
+					{
+						douDis = distance[i][j][0];
+						douDir = distance[i][j][1];
+					}
+			}
+		//暂时先决定去吃豆子
+		final = douDir;
+		int genDis = infDis, genDir = -1;
+		//找最近的豆子产生器（先粗略找一下,只有场地上没豆子的时候会去找）
+		if (douDis == infDis) {
+			genDis = distance[gameField.generators[0].row-1][gameField.generators[0].col][0];
+			for (int i = 1; i < 4; i++)
+				{
+				if (genDis >= distance[gameField.generators[i].row-1][gameField.generators[i].col][0]) {
+					genDis = distance[gameField.generators[i].row-1][gameField.generators[i].col][0];
+					genDir = distance[gameField.generators[i].row-1][gameField.generators[i].col][1];
+					}
+				}
+			//没豆子吃辣。那就去等着
+			final = genDir;
+		};
+		//遍历四个方向看看有没有人可以打
+		int shootDir = -1;
+		int targetNum = 0;
+		for (int dir = 0; dir < 4; dir++) {
+			int r = x.row;
+			int c = x.col;
+			while (!(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[dir]))
+			{
+				r = (r + Pacman::dy[dir] + gameField.height) % gameField.height;
+				c = (c + Pacman::dx[dir] + gameField.width) % gameField.width;
+
+				// 如果转了一圈回来……
+				if (r == x.row && c == x.col)
+					break;
+				if (gameField.fieldContent[r][c] & Pacman::playerMask)
+					for (int player = 0; player < MAX_PLAYER_COUNT; player++)
+						if (gameField.fieldContent[r][c] & Pacman::playerID2Mask[player])
+						{
+							//检测此玩家是不是跑不掉了
+							if (
+								(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
+								&& (gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir - 1) % 4])
+								) {
+								shootData[dir]++;
+							}
+						}
+			}
+			//挑目标最多的方向打
+			if (shootData[dir] > targetNum ) {
+				shootDir = dir + 4;
+				targetNum = shootData[dir];
+			}
+		}
+		//有人可以打当然要打啦
+		if (shootDir!= -1&&(gameField.SKILL_COST<gameField.players[myID].strength)) final = shootDir;
+		return final;
+	}
+
+}
+
 // 一些辅助程序
 namespace Helpers
 {
 
 	double actionScore[9] = {};
 
-	inline int RandBetween(int a, int b)
-	{
-		if (a > b)
-			swap(a, b);
-		return rand() % (b - a) + a;
-	}
 
-	void RandomPlay(Pacman::GameField& gameField, int myID)
+	void LocalPlay
+	(Pacman::GameField& gameField, int myID)
 	{
 		int count = 0, myAct = -1;
 		while (true)
 		{
-			// 对每个玩家生成随机的合法动作
 			for (int i = 0; i < MAX_PLAYER_COUNT; i++)
 			{
 				if (gameField.players[i].dead)
 					continue;
-				Pacman::Direction valid[9];
-				int vCount = 0;
-				for (Pacman::Direction d = Pacman::stay; d < 8; ++d)
-					if (gameField.ActionValid(i, d))
-						valid[vCount++] = d;
-				gameField.actions[i] = valid[RandBetween(0, vCount)];
+				gameField.actions[i] = (Pacman::Direction)Bot::calc(gameField, i);;
 			}
 
 			if (count == 0)
 				myAct = gameField.actions[myID];
 
 			// 演算一步局面变化
+			gameField.DebugPrint();
 			// NextTurn返回true表示游戏没有结束
 			bool hasNext = gameField.NextTurn();
 			count++;
-
+			//限制下最大回合数
+			if (count >= 20) {
+				break;
+			}
 			if (!hasNext)
 				break;
 		}
@@ -874,79 +1010,6 @@ namespace Helpers
 			gameField.PopState();
 	}
 }
-
-namespace Test
-{
-	int vis[20][20] = {};//是否访问过
-	int dis[20][20][2] = {};//距离，dis[x][y][0]表示当前点到(x,y)的距离，dis[x][y][1]表示当前点到(x,y)走的第一步的方向
-	struct T
-	{
-		int x, y;
-		T() {}
-		T(int x, int y) :x(x), y(y) {}
-	};
-	queue <T>q;
-	void BFSd(Pacman::GameField& gameField, int myID, int nowx, int nowy)//BFS遍历图上所有点，求出距离
-	{
-		while (!q.empty()) q.pop();
-		memset(vis, 0, sizeof(vis));
-		for (int i = 0; i < 20; i++)
-			for (int j = 0; j < 20; j++)
-				dis[i][j][0] = dis[i][j][1] = 0x3fff;
-		vis[nowx][nowy] = 1;
-		q.push(T(nowx, nowy));
-		dis[nowx][nowy][0] = 0;
-		T u, v;
-		while (!q.empty())
-		{
-			u = q.front();
-			q.pop();
-			for (int i = 0; i < 4; i++)
-			{
-				v.x = u.x + Pacman::dy[i];
-				v.y = u.y + Pacman::dx[i];
-				if (v.x < 0) v.x += gameField.height;
-				if (v.x >= gameField.height) v.x -= gameField.height;
-				if (v.y < 0) v.y += gameField.width;
-				if (v.y >= gameField.width) v.y -= gameField.width;
-				if (!(gameField.fieldStatic[u.x][u.y] & Pacman::direction2OpposingWall[(Pacman::Direction)(i)]) && !(gameField.fieldStatic[v.x][v.y] & Pacman::generator) && !vis[v.x][v.y])
-				{
-					//(u.x,u.y)到(v.x,v.y)方向上没有墙，(v.x,v.y)不是豆子产生器，(v.x,v.y)没走过
-					q.push(v);
-					vis[v.x][v.y] = 1;
-					dis[v.x][v.y][0] = dis[u.x][u.y][0] + 1;
-					if (u.x == nowx && u.y == nowy) dis[v.x][v.y][1] = i;//起始点方向记录
-					else dis[v.x][v.y][1] = dis[u.x][u.y][1];//传递方向
-				}
-			}
-		}
-	}
-	int calc(Pacman::GameField& gameField, int myID)
-	{
-		Pacman::Player& x = gameField.players[myID];
-		BFSd(gameField, myID, x.row, x.col);
-		int ans = 0x3fff, tmp = -1;
-		//枚举图上所有点找最近的豆子
-		for (int i = 0; i < gameField.height; i++)
-			for (int j = 0; j < gameField.width; j++)
-				if ((gameField.fieldContent[i][j] & Pacman::smallFruit))
-					if (ans > dis[i][j][0])
-					{
-						ans = dis[i][j][0];
-						tmp = dis[i][j][1];
-					}
-		/*for (int i = 0; i< 10; i++)
-		{
-			for (int j = 0; j < 10; j++)
-			{
-				printf("%6d", dis[i][j][0]);
-			}
-			cout << endl;
-		}*/
-		if (ans > 20) tmp = -1;//如果太远就呆在原地
-		return tmp;
-	}
-}
 int main()
 {
 	Pacman::GameField gameField;
@@ -955,13 +1018,22 @@ int main()
 							 // 如果在平台上，则不会去检查有无input.txt
 	int myID = gameField.ReadInput("input.txt", data, globalData); // 输入，并获得自己ID
 	srand(Pacman::seed + myID);
-	int Ans = Test::calc(gameField, myID);
+#ifdef _BOTZONE_ONLINE
+	int Ans = Bot::calc(gameField, myID);
 
 
 	// 输出当前游戏局面状态以供本地调试。注意提交到平台上会自动优化掉，不必担心。
 	gameField.DebugPrint();
 
 	gameField.WriteOutput((Pacman::Direction)(Ans), "hohoho", data, globalData);
+#else
+	//调试用，本地模拟
+	Helpers::LocalPlay(gameField, myID);
+#endif
+
+
+	
+	
 	return 0;
 }
 
