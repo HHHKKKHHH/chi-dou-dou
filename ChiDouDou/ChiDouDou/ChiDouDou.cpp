@@ -821,30 +821,35 @@ namespace Pacman
 
 namespace Bot
 {
-	int vis[20][20] = {};//是否访问过
-	int distance[20][20][2] = {};//距离，dis[x][y][0]表示当前点到(x,y)的距离，dis[x][y][1]表示当前点到(x,y)走的第一步的方向
-	int shootData[4] = {0,0,0,0};//记录当前位置四个方向上能打到的人数，排序：上 右 下 左
-	struct T
+	int infDis = 0x3fff;
+	struct location
 	{
 		int x, y;
-		T() {}
-		T(int x, int y) :x(x), y(y) {}
+		location() { x = 0; y = 0; }
+		location(int x, int y) :x(x), y(y) {}
 	};
-	queue <T>q;
-	void BFSd(Pacman::GameField& gameField, int myID, int nowx, int nowy)//BFS遍历图上所有点，求出距离
+	struct justify
+	{
+		int dis;
+		int dir;
+		bool isDanger;
+		int value;
+		justify() { dis = infDis; dir = -1; isDanger = false; value = 0; }
+		justify(int x, int y) :dis(x), dir(y) { isDanger = false; value = 0; }
+	};
+	int vis[20][20] = {};//是否访问过
+	justify valueMap[20][20] = {};//记录BFS的结果
+	int shootData[4] = {0,0,0,0};//记录当前位置四个方向上能打到的人数，排序：上 右 下 左
+	
+	queue <location>q;
+	void BFSd(Pacman::GameField& gameField, int myID, int nowx, int nowy)//BFS遍历图上所有点
 	{
 		while (!q.empty()) q.pop();
 		memset(vis, 0, sizeof(vis));
-		for (int i = 0; i < 20; i++)
-			for (int j = 0; j < 20; j++)
-			{
-				distance[i][j][0] =  0x3fff;
-				distance[i][j][1] = -1;
-			}
 		vis[nowx][nowy] = 1;
-		q.push(T(nowx, nowy));
-		distance[nowx][nowy][0] = 0;
-		T u, v;
+		q.push(location(nowx, nowy));
+		valueMap[nowx][nowy].dis = 0;
+		location u, v;
 		while (!q.empty())
 		{
 			u = q.front();
@@ -863,32 +868,36 @@ namespace Bot
 				if (!(gameField.fieldStatic[u.x][u.y] & Pacman::direction2OpposingWall[(Pacman::Direction)(i)]) 
 					&& !(gameField.fieldStatic[v.x][v.y] & Pacman::generator) 
 					&& !vis[v.x][v.y])
-					
 				{
-					//判断是不是有个坏家伙在这个方向上，有的话设成死路
-					bool hasBadguy = false;
+					//判断是不是有个坏家伙在这个方向上
 					if (gameField.fieldContent[v.x][v.y] & Pacman::playerMask)
 						for (int player = 0; player < MAX_PLAYER_COUNT; player++)
 							if (gameField.fieldContent[v.x][v.y] & Pacman::playerID2Mask[player])
 							{
 								if (gameField.players[player].strength > gameField.players[myID].strength) {
-									//有个坏家伙则往其他方向
-									hasBadguy = true;
+									valueMap[v.x][v.y].isDanger = true;
+									//把坏家伙旁边的可达点也设为危险，避免傻屌行为暴毙
+									for (int dir = 0; dir < 4; dir++) {
+										if (!(gameField.fieldStatic[v.x][v.y] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir)])) {
+											valueMap[v.x + Pacman::dy[dir]][v.y + Pacman::dx[dir]].isDanger = true;
+										}
+									}
 								}
 							}
-					if (hasBadguy) continue;
+					//危险地带当然不能走
+					if (valueMap[v.x][v.y].isDanger) continue;
 					q.push(v);
 					vis[v.x][v.y] = 1;
-					distance[v.x][v.y][0] = distance[u.x][u.y][0] + 1;
-					if (u.x == nowx && u.y == nowy) distance[v.x][v.y][1] = i;//起始点方向记录
-					else distance[v.x][v.y][1] = distance[u.x][u.y][1];//传递方向
+					valueMap[v.x][v.y].dis = valueMap[u.x][u.y].dis + 1;
+					if (u.x == nowx && u.y == nowy) valueMap[v.x][v.y].dir = i;//起始点方向记录
+					else valueMap[v.x][v.y].dir = valueMap[u.x][u.y].dir;//传递方向
 				}
 			}
 		}
 	}
 	int calc(Pacman::GameField& gameField, int myID)
 	{
-		int infDis = 0x3fff;
+		
 		int final = -1;
 		Pacman::Player& x = gameField.players[myID];
 		BFSd(gameField, myID, x.row, x.col);
@@ -897,11 +906,14 @@ namespace Bot
 		for (int i = 0; i < gameField.height; i++)
 			for (int j = 0; j < gameField.width; j++)
 			{
-				if ((gameField.fieldContent[i][j] & Pacman::smallFruit)|| (gameField.fieldContent[i][j] & Pacman::largeFruit))
-					if (douDis > distance[i][j][0])
+				//暂时大果子小果子都要，并且判定是否有人重叠于果子上
+				if (((gameField.fieldContent[i][j] & Pacman::smallFruit)
+					||(gameField.fieldContent[i][j] & Pacman::largeFruit))
+					&&(!(gameField.fieldContent[i][j] & Pacman::playerMask)))
+					if (douDis > valueMap[i][j].dis)
 					{
-						douDis = distance[i][j][0];
-						douDir = distance[i][j][1];
+						douDis = valueMap[i][j].dis;
+						douDir = valueMap[i][j].dir;
 					}
 			}
 		//暂时先决定去吃豆子
@@ -909,15 +921,17 @@ namespace Bot
 		int genDis = infDis, genDir = -1;
 		//找最近的豆子产生器（先粗略找一下,只有场地上没豆子的时候会去找）
 		if (douDis == infDis) {
-			genDis = distance[gameField.generators[0].row-1][gameField.generators[0].col][0];
-			for (int i = 1; i < 4; i++)
+
+			genDis = valueMap[(gameField.generators[0].row-1)%gameField.height][(gameField.generators[0].col) % gameField.width].dis;
+			for (int i = 0; i < 4; i++)
 				{
-				if (genDis >= distance[gameField.generators[i].row-1][gameField.generators[i].col][0]) {
-					genDis = distance[gameField.generators[i].row-1][gameField.generators[i].col][0];
-					genDir = distance[gameField.generators[i].row-1][gameField.generators[i].col][1];
+				if (genDis >= valueMap[(gameField.generators[i].row - 1) % gameField.height][(gameField.generators[i].col) % gameField.width].dis) {
+					genDis = valueMap[(gameField.generators[i].row - 1) % gameField.height][(gameField.generators[i].col) % gameField.width].dis;
+					genDir = valueMap[(gameField.generators[i].row - 1) % gameField.height][(gameField.generators[i].col) % gameField.width].dir;
 					}
 				}
 			//没豆子吃辣。那就去等着
+			if(genDis != infDis)
 			final = genDir;
 		};
 		//遍历四个方向看看有没有人可以打
@@ -938,11 +952,17 @@ namespace Bot
 					for (int player = 0; player < MAX_PLAYER_COUNT; player++)
 						if (gameField.fieldContent[r][c] & Pacman::playerID2Mask[player])
 						{
-							//检测此玩家是不是跑不掉了
+							//检测此玩家是不是跑不掉了，只对必中的目标开火
 							if (
 								(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
 								&& (gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir - 1) % 4])
 								) {
+								//如果自己也没路跑，并且对方比自己强大或势均力敌，为避免互射致死，走为上计
+								if ((gameField.fieldStatic[x.row][x.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
+									&& (gameField.fieldStatic[x.row][x.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
+									&& gameField.players[player].strength >= gameField.players[myID].strength) {
+								}
+								else
 								shootData[dir]++;
 							}
 						}
