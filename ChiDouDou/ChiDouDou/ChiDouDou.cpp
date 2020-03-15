@@ -958,11 +958,11 @@ namespace Bot
 								&& (gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir - 1) % 4])
 								) {
 								//如果自己也没路跑，并且对方比自己强大或势均力敌，为避免互射致死，走为上计
-								if ((gameField.fieldStatic[x.row][x.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
-									&& (gameField.fieldStatic[x.row][x.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
-									&& gameField.players[player].strength >= gameField.players[myID].strength) {
-								}
-								else
+								//if ((gameField.fieldStatic[x.row][x.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
+								//	&& (gameField.fieldStatic[x.row][x.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
+								//	&& gameField.players[player].strength >= gameField.players[myID].strength) {
+								//}
+								//else
 								shootData[dir]++;
 							}
 						}
