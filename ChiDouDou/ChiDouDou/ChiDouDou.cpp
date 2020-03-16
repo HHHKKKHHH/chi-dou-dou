@@ -1030,6 +1030,7 @@ namespace Bot
 		}
 		//有人可以打当然要打啦
 		if (shootDir!= -1&&(gameField.SKILL_COST<gameField.players[myID].strength)) final = shootDir;
+		if(myID==0) cout << "hkh永不认输!   " << final<< endl<<endl;
 		return final;
 	}
 
@@ -1102,7 +1103,10 @@ int main()
 	gameField.WriteOutput((Pacman::Direction)(Ans), "syynb!", data, globalData);
 #else
 	//调试用，本地模拟
-	Helpers::LocalPlay(gameField, myID,20);
+	//Helpers::LocalPlay(gameField, myID,10);
+	int Ans=(Pacman::Direction)Bot::calc(gameField, myID);
+	gameField.DebugPrint();
+	gameField.WriteOutput((Pacman::Direction)(Ans), "hohoho", data, globalData);
 #endif
 
 
