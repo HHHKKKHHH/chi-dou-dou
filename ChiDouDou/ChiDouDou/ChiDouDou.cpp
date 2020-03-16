@@ -840,7 +840,33 @@ namespace Bot
 	int vis[20][20] = {};//是否访问过
 	justify valueMap[20][20] = {};//记录BFS的结果
 	int shootData[4] = {0,0,0,0};//记录当前位置四个方向上能打到的人数，排序：上 右 下 左
-	
+
+	//判定危险范围
+	void dangerJustify(Pacman::GameField& gameField, int myID) {
+		for (int x = 0; x < gameField.height; x++) {
+			for (int y = 0; y < gameField.width; y++) {
+				if (gameField.fieldContent[x][y] & Pacman::playerMask) {
+					for (int player = 0; player < MAX_PLAYER_COUNT; player++) {
+						//自己当然不危险
+						if (player == myID) continue;
+						if (gameField.fieldContent[x][y] & Pacman::playerID2Mask[player])
+						{
+							if (gameField.players[player].strength > gameField.players[myID].strength) {
+								//不能直接走到人家嘴里去
+								valueMap[x][y].isDanger = true;
+								//把坏家伙旁边的可达点也设为危险，避免傻屌行为暴毙
+								for (int dir = 0; dir < 4; dir++) {
+									if (!(gameField.fieldStatic[x][y] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir)])) {
+										valueMap[(x + Pacman::dy[dir]) % gameField.height][(y + Pacman::dx[dir]) % gameField.width].isDanger = true;
+									}
+								}
+							}
+						}
+					}	
+				}
+			}
+		}
+	}
 	queue <location>q;
 	void BFSd(Pacman::GameField& gameField, int myID, int nowx, int nowy)//BFS遍历图上所有点
 	{
@@ -869,21 +895,6 @@ namespace Bot
 					&& !(gameField.fieldStatic[v.x][v.y] & Pacman::generator) 
 					&& !vis[v.x][v.y])
 				{
-					//判断是不是有个坏家伙在这个方向上
-					if (gameField.fieldContent[v.x][v.y] & Pacman::playerMask)
-						for (int player = 0; player < MAX_PLAYER_COUNT; player++)
-							if (gameField.fieldContent[v.x][v.y] & Pacman::playerID2Mask[player])
-							{
-								if (gameField.players[player].strength > gameField.players[myID].strength) {
-									valueMap[v.x][v.y].isDanger = true;
-									//把坏家伙旁边的可达点也设为危险，避免傻屌行为暴毙
-									for (int dir = 0; dir < 4; dir++) {
-										if (!(gameField.fieldStatic[v.x][v.y] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir)])) {
-											valueMap[v.x + Pacman::dy[dir]][v.y + Pacman::dx[dir]].isDanger = true;
-										}
-									}
-								}
-							}
 					//危险地带当然不能走
 					if (valueMap[v.x][v.y].isDanger) continue;
 					q.push(v);
@@ -897,9 +908,9 @@ namespace Bot
 	}
 	int calc(Pacman::GameField& gameField, int myID)
 	{
-		
 		int final = -1;
 		Pacman::Player& x = gameField.players[myID];
+		dangerJustify(gameField, myID);
 		BFSd(gameField, myID, x.row, x.col);
 		int douDis = infDis, douDir = -1;
 		//枚举图上所有点找最近的豆子
@@ -919,9 +930,9 @@ namespace Bot
 		//暂时先决定去吃豆子
 		final = douDir;
 		int genDis = infDis, genDir = -1;
-		//找最近的豆子产生器（先粗略找一下,只有场地上没豆子的时候会去找）
+		
 		if (douDis == infDis) {
-
+			//找最近的豆子产生器（先粗略找一下,只有场地上没豆子的时候会去找）
 			genDis = valueMap[(gameField.generators[0].row-1)%gameField.height][(gameField.generators[0].col) % gameField.width].dis;
 			for (int i = 0; i < 4; i++)
 				{
