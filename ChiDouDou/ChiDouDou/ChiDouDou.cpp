@@ -821,7 +821,7 @@ namespace Pacman
 
 namespace Bot
 {
-	int infDis = 0x3fff;
+	const int infDis = 0x3fff;
 	struct location
 	{
 		int x, y;
@@ -839,19 +839,55 @@ namespace Bot
 	};
 	int vis[20][20] = {};//是否访问过
 	justify valueMap[20][20] = {};//记录BFS的结果
+	int infallibleData[4] = {0,0,0,0};//记录当前位置四个方向上必定能打到的人数，排序：上 右 下 左
 	int shootData[4] = {0,0,0,0};//记录当前位置四个方向上能打到的人数，排序：上 右 下 左
+			//最优豆子信息
+	int douDis = infDis, douDir = -1;
+	//最优豆子产生器附近信息
+	int genDis = infDis, genDir = -1;
+	//最终决策
+	int final = -1;
 
+
+	//便于本地调试，每次都初始化
+	void init(Pacman::GameField& gameField) {
+		final = -1;
+		douDis = infDis, douDir = -1;
+		genDis = infDis, genDir = -1;
+		for (int i = 0; i < 4; i++) {
+			infallibleData[i] = 0;
+			shootData[i] = 0;
+		}
+		for (int x = 0; x < gameField.height; x++)
+		{
+			for (int y = 0; y < gameField.width; y++) 
+			{
+				vis[x][y] = 0;
+				valueMap[x][y].dis=infDis;
+				valueMap[x][y].dir = -1;
+
+				valueMap[x][y].isDanger = false;
+				valueMap[x][y].value = 0;
+			}
+		}
+	}
 	//判定危险范围
-	void dangerJustify(Pacman::GameField& gameField, int myID) {
-		for (int x = 0; x < gameField.height; x++) {
-			for (int y = 0; y < gameField.width; y++) {
-				if (gameField.fieldContent[x][y] & Pacman::playerMask) {
-					for (int player = 0; player < MAX_PLAYER_COUNT; player++) {
+	void dangerJustify(Pacman::GameField& gameField, int myID) 
+	{
+		for (int x = 0; x < gameField.height; x++) 
+		{
+			for (int y = 0; y < gameField.width; y++)
+			{
+				if (gameField.fieldContent[x][y] & Pacman::playerMask) 
+				{
+					for (int player = 0; player < MAX_PLAYER_COUNT; player++) 
+					{
 						//自己当然不危险
 						if (player == myID) continue;
 						if (gameField.fieldContent[x][y] & Pacman::playerID2Mask[player])
 						{
-							if (gameField.players[player].strength > gameField.players[myID].strength) {
+							if (gameField.players[player].strength > gameField.players[myID].strength) 
+							{
 								//不能直接走到人家嘴里去
 								valueMap[x][y].isDanger = true;
 								//把坏家伙旁边的可达点也设为危险，避免傻屌行为暴毙
@@ -874,6 +910,7 @@ namespace Bot
 		memset(vis, 0, sizeof(vis));
 		vis[nowx][nowy] = 1;
 		q.push(location(nowx, nowy));
+		if(!valueMap[nowx][nowy].isDanger)
 		valueMap[nowx][nowy].dis = 0;
 		location u, v;
 		while (!q.empty())
@@ -892,7 +929,6 @@ namespace Bot
 
 				//(u.x,u.y)到(v.x,v.y)方向上没有墙，(v.x,v.y)不是豆子产生器，(v.x,v.y)没走过
 				if (!(gameField.fieldStatic[u.x][u.y] & Pacman::direction2OpposingWall[(Pacman::Direction)(i)]) 
-					&& !(gameField.fieldStatic[v.x][v.y] & Pacman::generator) 
 					&& !vis[v.x][v.y])
 				{
 					//危险地带当然不能走
@@ -908,11 +944,11 @@ namespace Bot
 	}
 	int calc(Pacman::GameField& gameField, int myID)
 	{
-		int final = -1;
+		init(gameField);
 		Pacman::Player& x = gameField.players[myID];
 		dangerJustify(gameField, myID);
 		BFSd(gameField, myID, x.row, x.col);
-		int douDis = infDis, douDir = -1;
+
 		//枚举图上所有点找最近的豆子
 		for (int i = 0; i < gameField.height; i++)
 			for (int j = 0; j < gameField.width; j++)
@@ -928,29 +964,36 @@ namespace Bot
 					}
 			}
 		//暂时先决定去吃豆子
+		if (douDir != infDis)
 		final = douDir;
-		int genDis = infDis, genDir = -1;
-		
+	
 		if (douDis == infDis) {
 			//找最近的豆子产生器（先粗略找一下,只有场地上没豆子的时候会去找）
-			genDis = valueMap[(gameField.generators[0].row-1)%gameField.height][(gameField.generators[0].col) % gameField.width].dis;
-			for (int i = 0; i < 4; i++)
-				{
-				if (genDis >= valueMap[(gameField.generators[i].row - 1) % gameField.height][(gameField.generators[i].col) % gameField.width].dis) {
-					genDis = valueMap[(gameField.generators[i].row - 1) % gameField.height][(gameField.generators[i].col) % gameField.width].dis;
-					genDir = valueMap[(gameField.generators[i].row - 1) % gameField.height][(gameField.generators[i].col) % gameField.width].dir;
+			for (int i = 0; i < MAX_GENERATOR_COUNT; i++){
+				justify generatorSide[4] = { 
+				valueMap[(gameField.generators[i].row) % gameField.height][(gameField.generators[i].col - 1) % gameField.width],
+				valueMap[(gameField.generators[i].row) % gameField.height][(gameField.generators[i].col + 1) % gameField.width],
+				valueMap[(gameField.generators[i].row + 1) % gameField.height][(gameField.generators[i].col) % gameField.width],
+				valueMap[(gameField.generators[i].row - 1) % gameField.height][(gameField.generators[i].col) % gameField.width],
+				};
+				for (int pos = 0; pos < 4; pos++) {
+					if (genDis > generatorSide[pos].dis) {
+						genDis = generatorSide[pos].dis;
+						genDir = generatorSide[pos].dir;
 					}
 				}
+			}
 			//没豆子吃辣。那就去等着
 			if(genDis != infDis)
 			final = genDir;
 		};
 		//遍历四个方向看看有没有人可以打
 		int shootDir = -1;
-		int targetNum = 0;
+		int maxTargetNum = 0;
 		for (int dir = 0; dir < 4; dir++) {
 			int r = x.row;
 			int c = x.col;
+			
 			while (!(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[dir]))
 			{
 				r = (r + Pacman::dy[dir] + gameField.height) % gameField.height;
@@ -961,8 +1004,9 @@ namespace Bot
 					break;
 				if (gameField.fieldContent[r][c] & Pacman::playerMask)
 					for (int player = 0; player < MAX_PLAYER_COUNT; player++)
-						if (gameField.fieldContent[r][c] & Pacman::playerID2Mask[player])
+						if (player != myID&&(gameField.fieldContent[r][c] & Pacman::playerID2Mask[player]))
 						{
+							
 							//检测此玩家是不是跑不掉了，只对必中的目标开火
 							if (
 								(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
@@ -974,14 +1018,14 @@ namespace Bot
 								//	&& gameField.players[player].strength >= gameField.players[myID].strength) {
 								//}
 								//else
-								shootData[dir]++;
+								infallibleData[dir]++;
 							}
 						}
 			}
 			//挑目标最多的方向打
-			if (shootData[dir] > targetNum ) {
+			if (infallibleData[dir] > maxTargetNum ) {
 				shootDir = dir + 4;
-				targetNum = shootData[dir];
+				maxTargetNum = infallibleData[dir];
 			}
 		}
 		//有人可以打当然要打啦
@@ -1019,6 +1063,7 @@ namespace Helpers
 			// NextTurn返回true表示游戏没有结束
 			bool hasNext = gameField.NextTurn();
 			count++;
+			cout << count << endl;
 			//限制下最大回合数
 			if (count >= countLimit) {
 				break;
@@ -1054,7 +1099,7 @@ int main()
 	// 输出当前游戏局面状态以供本地调试。注意提交到平台上会自动优化掉，不必担心。
 	gameField.DebugPrint();
 
-	gameField.WriteOutput((Pacman::Direction)(Ans), "hohoho", data, globalData);
+	gameField.WriteOutput((Pacman::Direction)(Ans), "syynb!", data, globalData);
 #else
 	//调试用，本地模拟
 	Helpers::LocalPlay(gameField, myID,20);
