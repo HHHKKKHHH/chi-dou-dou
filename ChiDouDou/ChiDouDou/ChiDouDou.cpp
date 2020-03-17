@@ -43,6 +43,7 @@
 #include <stdexcept>
 #include "jsoncpp/json.h"
 
+
 #define FIELD_MAX_HEIGHT 20
 #define FIELD_MAX_WIDTH 20
 #define MAX_GENERATOR_COUNT 4 // 每个象限1
@@ -186,7 +187,7 @@ namespace Pacman
 
 		// 玩家选定的动作
 		Direction actions[MAX_PLAYER_COUNT];
-
+		
 		// 此回合该玩家的状态变化
 		StatusChange change[MAX_PLAYER_COUNT];
 
@@ -226,6 +227,8 @@ namespace Pacman
 
 										  // 玩家选定的动作
 		Direction actions[MAX_PLAYER_COUNT];
+		//玩家上回合的动作
+		int LastActions[MAX_PLAYER_COUNT];
 
 		// 恢复到上次场地状态。可以一路恢复到最开始。
 		// 恢复失败（没有状态可恢复）返回false
@@ -645,6 +648,8 @@ namespace Pacman
 			SKILL_COST = field["SKILL_COST"].asInt();
 			generatorTurnLeft = GENERATOR_INTERVAL = field["GENERATOR_INTERVAL"].asInt();
 
+			
+
 			PrepareInitialField(staticField, contentField);
 
 			// 根据历史恢复局面
@@ -657,7 +662,13 @@ namespace Pacman
 				NextTurn();
 			}
 
+			for (int _ = 0; _ < MAX_PLAYER_COUNT; _++)
+			{
+				LastActions[_] = actions[_];//储存上回合的动作
+			}
+
 			obtainedData = input["data"].asString();
+			
 			obtainedGlobalData = input["globaldata"].asString();
 
 			return field["id"].asInt();
@@ -841,7 +852,7 @@ namespace Bot
 	justify valueMap[20][20] = {};//记录BFS的结果
 	int infallibleData[4] = {0,0,0,0};//记录当前位置四个方向上必定能打到的人数，排序：上 右 下 左
 	int shootData[4] = {0,0,0,0};//记录当前位置四个方向上能打到的人数，排序：上 右 下 左
-	//最优豆子信息
+			//最优豆子信息
 	int douDis = infDis, douDir = -1;
 	//最优豆子产生器附近信息
 	int genDis = infDis, genDir = -1;
@@ -910,9 +921,8 @@ namespace Bot
 		memset(vis, 0, sizeof(vis));
 		vis[nowx][nowy] = 1;
 		q.push(location(nowx, nowy));
-		if(!valueMap[nowx][nowy].isDanger){ 
-			valueMap[nowx][nowy].dis = 0; 
-		}
+		if(!valueMap[nowx][nowy].isDanger)
+		valueMap[nowx][nowy].dis = 0;
 		location u, v;
 		while (!q.empty())
 		{
@@ -928,11 +938,11 @@ namespace Bot
 				if (v.y < 0) v.y += gameField.width;
 				if (v.y >= gameField.width) v.y -= gameField.width;
 
-				//(u.x,u.y)到(v.x,v.y)方向上没有墙，(v.x,v.y)没走过
+				//(u.x,u.y)到(v.x,v.y)方向上没有墙，(v.x,v.y)不是豆子产生器，(v.x,v.y)没走过
 				if (!(gameField.fieldStatic[u.x][u.y] & Pacman::direction2OpposingWall[(Pacman::Direction)(i)]) 
 					&& !vis[v.x][v.y])
 				{
-					//危险地带当然不能走,跳过即维持默认标注距离inf，需求动作-1
+					//危险地带当然不能走
 					if (valueMap[v.x][v.y].isDanger) continue;
 					q.push(v);
 					vis[v.x][v.y] = 1;
@@ -947,6 +957,7 @@ namespace Bot
 	{
 		init(gameField);
 		Pacman::Player& x = gameField.players[myID];
+		
 		dangerJustify(gameField, myID);
 		BFSd(gameField, myID, x.row, x.col);
 
@@ -965,7 +976,8 @@ namespace Bot
 					}
 			}
 		//暂时先决定去吃豆子
-		if (douDir != infDis){ final = douDir; }
+		if (douDir != infDis)
+		final = douDir;
 	
 		if (douDis == infDis) {
 			//找最近的豆子产生器（先粗略找一下,只有场地上没豆子的时候会去找）
@@ -984,7 +996,8 @@ namespace Bot
 				}
 			}
 			//没豆子吃辣。那就去等着
-			if(genDis != infDis){ final = genDir; }
+			if(genDis != infDis)
+			final = genDir;
 		};
 		//遍历四个方向看看有没有人可以打
 		int shootDir = -1;
@@ -1005,7 +1018,7 @@ namespace Bot
 					for (int player = 0; player < MAX_PLAYER_COUNT; player++)
 						if (player != myID&&(gameField.fieldContent[r][c] & Pacman::playerID2Mask[player]))
 						{
-							shootData[dir]++;
+							
 							//检测此玩家是不是跑不掉了，只对必中的目标开火
 							if (
 								(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
@@ -1027,21 +1040,9 @@ namespace Bot
 				maxTargetNum = infallibleData[dir];
 			}
 		}
-		//有人找打当然要打啦
+		//有人可以打当然要打啦
 		if (shootDir!= -1&&(gameField.SKILL_COST<gameField.players[myID].strength)) final = shootDir;
 		//if(myID==0) cout << "hkh永不认输!   " << final<< endl<<endl;
-		//如果动不了了,垂死挣扎
-		if (final == -1) {
-			int max = 0;
-			int maxDir = -1;
-			for (int i = 0; i < 4; i++) {
-				if (max < shootData[i]) {
-					max = shootData[i];
-					maxDir = i + 4;
-				}
-			}
-			final = maxDir;
-		}
 		return final;
 	}
 
@@ -1103,6 +1104,8 @@ int main()
 	Pacman::GameField gameField;
 	string data, globalData; 
 	int myID = gameField.ReadInput("input.txt", data, globalData); // 输入，并获得自己ID
+	/*for (int i = 0; i < 4; i++)
+		cout << " " << gameField.LastActions[i] << endl;*/
 	srand(Pacman::seed + myID);
 #ifdef _BOTZONE_ONLINE
 	int Ans = Bot::calc(gameField, myID);
@@ -1116,7 +1119,9 @@ int main()
 	//调试用，本地模拟
 	//Helpers::LocalPlay(gameField, myID,10);
 	int Ans=(Pacman::Direction)Bot::calc(gameField, myID);
+
 	gameField.DebugPrint();
+	
 	gameField.WriteOutput((Pacman::Direction)(Ans), "hohoho", data, globalData);
 #endif
 
