@@ -43,6 +43,7 @@
 #include <stdexcept>
 #include "jsoncpp/json.h"
 
+
 #define FIELD_MAX_HEIGHT 20
 #define FIELD_MAX_WIDTH 20
 #define MAX_GENERATOR_COUNT 4 // 每个象限1
@@ -186,7 +187,7 @@ namespace Pacman
 
 		// 玩家选定的动作
 		Direction actions[MAX_PLAYER_COUNT];
-
+		
 		// 此回合该玩家的状态变化
 		StatusChange change[MAX_PLAYER_COUNT];
 
@@ -226,6 +227,8 @@ namespace Pacman
 
 										  // 玩家选定的动作
 		Direction actions[MAX_PLAYER_COUNT];
+		//玩家上回合的动作
+		int LastActions[MAX_PLAYER_COUNT];
 
 		// 恢复到上次场地状态。可以一路恢复到最开始。
 		// 恢复失败（没有状态可恢复）返回false
@@ -645,6 +648,8 @@ namespace Pacman
 			SKILL_COST = field["SKILL_COST"].asInt();
 			generatorTurnLeft = GENERATOR_INTERVAL = field["GENERATOR_INTERVAL"].asInt();
 
+			
+
 			PrepareInitialField(staticField, contentField);
 
 			// 根据历史恢复局面
@@ -657,7 +662,13 @@ namespace Pacman
 				NextTurn();
 			}
 
+			for (int _ = 0; _ < MAX_PLAYER_COUNT; _++)
+			{
+				LastActions[_] = actions[_];//储存上回合的动作
+			}
+
 			obtainedData = input["data"].asString();
+			
 			obtainedGlobalData = input["globaldata"].asString();
 
 			return field["id"].asInt();
@@ -946,6 +957,7 @@ namespace Bot
 	{
 		init(gameField);
 		Pacman::Player& x = gameField.players[myID];
+		
 		dangerJustify(gameField, myID);
 		BFSd(gameField, myID, x.row, x.col);
 
@@ -1030,7 +1042,7 @@ namespace Bot
 		}
 		//有人可以打当然要打啦
 		if (shootDir!= -1&&(gameField.SKILL_COST<gameField.players[myID].strength)) final = shootDir;
-		if(myID==0) cout << "hkh永不认输!   " << final<< endl<<endl;
+		//if(myID==0) cout << "hkh永不认输!   " << final<< endl<<endl;
 		return final;
 	}
 
@@ -1092,6 +1104,8 @@ int main()
 	Pacman::GameField gameField;
 	string data, globalData; 
 	int myID = gameField.ReadInput("input.txt", data, globalData); // 输入，并获得自己ID
+	/*for (int i = 0; i < 4; i++)
+		cout << " " << gameField.LastActions[i] << endl;*/
 	srand(Pacman::seed + myID);
 #ifdef _BOTZONE_ONLINE
 	int Ans = Bot::calc(gameField, myID);
@@ -1105,7 +1119,9 @@ int main()
 	//调试用，本地模拟
 	//Helpers::LocalPlay(gameField, myID,10);
 	int Ans=(Pacman::Direction)Bot::calc(gameField, myID);
+
 	gameField.DebugPrint();
+	
 	gameField.WriteOutput((Pacman::Direction)(Ans), "hohoho", data, globalData);
 #endif
 

@@ -1,7 +1,7 @@
 ﻿  ChiDouDou.cpp
-C:\Users\Amadeus\Desktop\项目\chi-dou-dou\ChiDouDou\ChiDouDou\ChiDouDou.cpp(465,1): warning C4244: “-=”: 从“double”转换到“int”，可能丢失数据
-C:\Users\Amadeus\Desktop\项目\chi-dou-dou\ChiDouDou\ChiDouDou\ChiDouDou.cpp(466,1): warning C4244: “-=”: 从“double”转换到“int”，可能丢失数据
-C:\Users\Amadeus\Desktop\项目\chi-dou-dou\ChiDouDou\ChiDouDou\ChiDouDou.cpp(467,1): warning C4244: “+=”: 从“double”转换到“int”，可能丢失数据
-C:\Users\Amadeus\Desktop\项目\chi-dou-dou\ChiDouDou\ChiDouDou\ChiDouDou.cpp(468,1): warning C4244: “+=”: 从“double”转换到“int”，可能丢失数据
-C:\Users\Amadeus\Desktop\项目\chi-dou-dou\ChiDouDou\ChiDouDou\ChiDouDou.cpp(1050,21): warning C4244: “参数”: 从“time_t”转换到“unsigned int”，可能丢失数据
+C:\Users\Amadeus\Desktop\项目\chi-dou-dou\ChiDouDou\ChiDouDou\ChiDouDou.cpp(468,1): warning C4244: “-=”: 从“double”转换到“int”，可能丢失数据
+C:\Users\Amadeus\Desktop\项目\chi-dou-dou\ChiDouDou\ChiDouDou\ChiDouDou.cpp(469,1): warning C4244: “-=”: 从“double”转换到“int”，可能丢失数据
+C:\Users\Amadeus\Desktop\项目\chi-dou-dou\ChiDouDou\ChiDouDou\ChiDouDou.cpp(470,1): warning C4244: “+=”: 从“double”转换到“int”，可能丢失数据
+C:\Users\Amadeus\Desktop\项目\chi-dou-dou\ChiDouDou\ChiDouDou\ChiDouDou.cpp(471,1): warning C4244: “+=”: 从“double”转换到“int”，可能丢失数据
+C:\Users\Amadeus\Desktop\项目\chi-dou-dou\ChiDouDou\ChiDouDou\ChiDouDou.cpp(1109,21): warning C4244: “参数”: 从“time_t”转换到“unsigned int”，可能丢失数据
   ChiDouDou.vcxproj -> C:\Users\Amadeus\Desktop\项目\chi-dou-dou\ChiDouDou\x64\Debug\ChiDouDou.exe
