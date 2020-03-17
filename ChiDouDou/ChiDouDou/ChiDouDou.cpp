@@ -888,38 +888,32 @@ namespace Bot
 	//判定危险范围
 	void dangerJustify(Pacman::GameField& gameField, int myID) 
 	{
-		for (int x = 0; x < gameField.height; x++) 
-		{
-			for (int y = 0; y < gameField.width; y++)
-			{
-				if (gameField.fieldContent[x][y] & Pacman::playerMask) 
-				{
-					for (int player = 0; player < MAX_PLAYER_COUNT; player++) 
+		for (int player = 0; player < MAX_PLAYER_COUNT; player++) 
 					{
 						//自己当然不危险
-						if (player == myID) continue;
-						if (gameField.fieldContent[x][y] & Pacman::playerID2Mask[player])
-						{
+			if (player == myID) continue;
+			Pacman::Player& aPlayer = gameField.players[player];
+			if (gameField.fieldContent[aPlayer.row][aPlayer.col] & Pacman::playerID2Mask[player])
+				{
 							if (gameField.players[player].strength > gameField.players[myID].strength) 
 							{
 								//不能直接走到人家嘴里去
-								valueMap[x][y].isDanger = true;
+								valueMap[aPlayer.row][aPlayer.col].isDanger = true;
 								//把坏家伙旁边的可达点也设为危险，避免傻屌行为暴毙
 								for (int dir = 0; dir < 4; dir++) {
-									if (!(gameField.fieldStatic[x][y] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir)])) {
-										valueMap[(x + Pacman::dy[dir]) % gameField.height][(y + Pacman::dx[dir]) % gameField.width].isDanger = true;
+									if (!(gameField.fieldStatic[aPlayer.row][aPlayer.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir)])) {
+										valueMap[(aPlayer.row + Pacman::dy[dir]) % gameField.height][(aPlayer.col + Pacman::dx[dir]) % gameField.width].isDanger = true;
 									}
 								}
 							}
-						}
-					}	
-				}
+	
 			}
 		}
 	}
-	queue <location>q;
+	
 	void BFSd(Pacman::GameField& gameField, int myID, int nowx, int nowy)//BFS遍历图上所有点
 	{
+		queue <location>q;
 		while (!q.empty()) q.pop();
 		memset(vis, 0, sizeof(vis));
 		vis[nowx][nowy] = 1;
@@ -949,7 +943,9 @@ namespace Bot
 					if (valueMap[v.x][v.y].isDanger) continue;
 					q.push(v);
 					vis[v.x][v.y] = 1;
-					valueMap[v.x][v.y].dis = valueMap[u.x][u.y].dis + 1;
+					//对于初始点要特殊处理
+					if (u.x == nowx && u.y == nowy) valueMap[v.x][v.y].dis = 1;
+					else valueMap[v.x][v.y].dis = valueMap[u.x][u.y].dis + 1;
 					if (u.x == nowx && u.y == nowy) valueMap[v.x][v.y].dir = i;//起始点方向记录
 					else valueMap[v.x][v.y].dir = valueMap[u.x][u.y].dir;//传递方向
 				}
@@ -959,10 +955,10 @@ namespace Bot
 	int calc(Pacman::GameField& gameField, int myID)
 	{
 		init(gameField);
-		Pacman::Player& x = gameField.players[myID];
+		Pacman::Player& me = gameField.players[myID];
 		
 		dangerJustify(gameField, myID);
-		BFSd(gameField, myID, x.row, x.col);
+		BFSd(gameField, myID, me.row, me.col);
 
 		//枚举图上所有点找最近的豆子
 		for (int i = 0; i < gameField.height; i++)
@@ -979,8 +975,11 @@ namespace Bot
 					}
 			}
 		//暂时先决定去吃豆子
-		if (douDir != infDis)
-		final = douDir;
+		if (douDir != infDis) {
+			shoutString = "恰恰恰~";
+			final = douDir;
+		}
+		
 	
 		if (douDis == infDis) {
 			//找最近的豆子产生器（先粗略找一下,只有场地上没豆子的时候会去找）
@@ -998,31 +997,33 @@ namespace Bot
 				}
 			}
 			//没豆子吃辣。那就去等着
-			if(genDis != infDis)
-			final = genDir;
+			if (genDis != infDis) {
+				shoutString = "还有的吃";
+				final = genDir;
+			}
+				
 		};
 		//遍历四个方向看看有没有人可以打
 		int shootDir = -1;
 		int maxTargetNum = 0;
 		for (int dir = 0; dir < 4; dir++) {
-			int r = x.row;
-			int c = x.col;
-			
+			int r = me.row;
+			int c = me.col;
 			while (!(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[dir]))
 			{
 				r = (r + Pacman::dy[dir] + gameField.height) % gameField.height;
 				c = (c + Pacman::dx[dir] + gameField.width) % gameField.width;
 
 				// 如果转了一圈回来……
-				if (r == x.row && c == x.col)
+				if (r == me.row && c == me.col)
 					break;
 				if (gameField.fieldContent[r][c] & Pacman::playerMask)
 					for (int player = 0; player < MAX_PLAYER_COUNT; player++)
 						if (player != myID&&(gameField.fieldContent[r][c] & Pacman::playerID2Mask[player]))
 						{
 							//记录自己是不是躲不开
-							bool canNotHide = (gameField.fieldStatic[x.row][x.col] & Pacman::direction2OpposingWall[(dir + 1) % 4])
-								&& (gameField.fieldStatic[x.row][x.col] & Pacman::direction2OpposingWall[(dir +3) % 4]);
+							bool canNotHide = (gameField.fieldStatic[me.row][me.col] & Pacman::direction2OpposingWall[(dir + 1) % 4])
+								&& (gameField.fieldStatic[me.row][me.col] & Pacman::direction2OpposingWall[(dir +3) % 4]);
 							//先记录此方向有人
 							shootData[dir]++;
 							//检测此玩家是不是跑不掉了
@@ -1039,10 +1040,11 @@ namespace Bot
 								infallibleData[dir]++;
 							}
 							//判断是否很大机会命中
-							//如果目标上回合朝我们开火,且我们没得躲
+							//如果比我们弱小的目标上回合朝我们开火,且我们没得躲,那就对射
 							else if( 
 								((gameField.players[player].lastAction-4)==(dir+2)%4)
 								&&canNotHide
+								&& gameField.players[player].strength <= gameField.players[myID].strength
 								) {
 								infallibleData[dir]++;
 							}
@@ -1052,49 +1054,56 @@ namespace Bot
 								) {
 								infallibleData[dir]++;
 							}
-							//以下两个判断对方是否刚刚拐进小巷
+							//以下两个判断对方是否刚刚拐进小巷，拐进来的就是送上门啦（除了某些丧心病狂的程序还会躲
 							else if (
 								(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir + 1) % 4])
-								&& (gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir)])
+								
 								&& gameField.players[player].lastAction == (dir+1)%4
 								) {
 								infallibleData[dir]++;
 							}
 							else if (
 								(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir + 3) % 4])
-								&& (gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir)])
+								
 								&& gameField.players[player].lastAction == (dir +3) % 4){
 								infallibleData[dir]++;
 							}
 						}
 			}
-			//挑目标最多的方向打
+			//挑出目标最多的方向打
 			if (infallibleData[dir] > maxTargetNum ) {
 				shootDir = dir + 4;
 				maxTargetNum = infallibleData[dir];
 			}
 		}
-		//有人可以打当然要打啦
-		if (shootDir!= -1&&(gameField.SKILL_COST<gameField.players[myID].strength)) final = shootDir;
+		//有人可以打当然要打啦(前提是不处在危险之中)
+		if (shootDir != -1 && (gameField.SKILL_COST < gameField.players[myID].strength)) {
+			if(!valueMap[me.row][me.col].isDanger){ 
+				final = shootDir; 
+				shoutString = "我射";
+			}
+		}
 		//如果没路走了，垂死一搏
 		if (final == -1) {
 			int maxShootNum = 0;
-			int shootDir = -1;
 			for (int dir = 0; dir < 4; dir++) {
 				if (maxShootNum < shootData[dir]) {
 					maxShootNum = shootData[dir];
 					shootDir = dir+4;
+					shoutString = "跟你拼了";
 				}
 			}
+			
+			final = shootDir;
 		}
 		//最后一道防线，防止出现违规输出
 		if (final >= -1 && final <= 7)
 		{
-			shoutString = "syynb!";
+			if (final == -1) shoutString = "以静制动";
 			return final;
 		}
 		else {
-			shoutString = "wo sha le";
+			shoutString = "bugggg";
 			return -1;
 		}
 	}
@@ -1169,7 +1178,7 @@ int main()
 	// 输出当前游戏局面状态以供本地调试。注意提交到平台上会自动优化掉，不必担心。
 	gameField.DebugPrint();
 
-	gameField.WriteOutput((Pacman::Direction)(Ans), "syynb!", data, globalData);
+	gameField.WriteOutput((Pacman::Direction)(Ans), Bot::shout(), data, globalData);
 #else
 	//调试用，本地模拟
 	//Helpers::LocalPlay(gameField, myID,10);
