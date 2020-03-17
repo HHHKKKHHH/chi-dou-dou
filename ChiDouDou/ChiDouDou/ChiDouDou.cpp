@@ -162,6 +162,7 @@ namespace Pacman
 		int strength;
 		int powerUpLeft;
 		bool dead;
+		int lastAction;
 	};
 
 	// 回合新产生的豆子的坐标
@@ -225,7 +226,7 @@ namespace Pacman
 		FieldProp generators[MAX_GENERATOR_COUNT]; // 有哪些豆子产生器
 		Player players[MAX_PLAYER_COUNT]; // 有哪些玩家
 
-										  // 玩家选定的动作
+		// 玩家选定的动作
 		Direction actions[MAX_PLAYER_COUNT];
 		//玩家上回合的动作
 		int LastActions[MAX_PLAYER_COUNT];
@@ -664,6 +665,7 @@ namespace Pacman
 
 			for (int _ = 0; _ < MAX_PLAYER_COUNT; _++)
 			{
+				players[_].lastAction = actions[_];
 				LastActions[_] = actions[_];//储存上回合的动作
 			}
 
@@ -858,7 +860,8 @@ namespace Bot
 	int genDis = infDis, genDir = -1;
 	//最终决策
 	int final = -1;
-
+	//叫嚣语句
+	string shoutString = "";
 
 	//便于本地调试，每次都初始化
 	void init(Pacman::GameField& gameField) {
@@ -982,16 +985,15 @@ namespace Bot
 		if (douDis == infDis) {
 			//找最近的豆子产生器（先粗略找一下,只有场地上没豆子的时候会去找）
 			for (int i = 0; i < MAX_GENERATOR_COUNT; i++){
-				justify generatorSide[4] = { 
-				valueMap[(gameField.generators[i].row) % gameField.height][(gameField.generators[i].col - 1) % gameField.width],
-				valueMap[(gameField.generators[i].row) % gameField.height][(gameField.generators[i].col + 1) % gameField.width],
-				valueMap[(gameField.generators[i].row + 1) % gameField.height][(gameField.generators[i].col) % gameField.width],
-				valueMap[(gameField.generators[i].row - 1) % gameField.height][(gameField.generators[i].col) % gameField.width],
-				};
+				justify* generatorSide[4];
+				generatorSide[0] = &(valueMap[(gameField.generators[i].row) % gameField.height][(gameField.generators[i].col - 1+ gameField.width) % gameField.width]);
+				generatorSide[1] = &(valueMap[(gameField.generators[i].row) % gameField.height][(gameField.generators[i].col + 1 + gameField.width) % gameField.width]);
+				generatorSide[2] = &(valueMap[(gameField.generators[i].row + 1 + gameField.height) % gameField.height][(gameField.generators[i].col) % gameField.width]);
+				generatorSide[3] = &(valueMap[(gameField.generators[i].row - 1+ gameField.height) % gameField.height][(gameField.generators[i].col) % gameField.width]);
 				for (int pos = 0; pos < 4; pos++) {
-					if (genDis > generatorSide[pos].dis) {
-						genDis = generatorSide[pos].dis;
-						genDir = generatorSide[pos].dir;
+					if (genDis > (*generatorSide[pos]).dis) {
+						genDis = (*generatorSide[pos]).dis;
+						genDir = (*generatorSide[pos]).dir;
 					}
 				}
 			}
@@ -1018,11 +1020,15 @@ namespace Bot
 					for (int player = 0; player < MAX_PLAYER_COUNT; player++)
 						if (player != myID&&(gameField.fieldContent[r][c] & Pacman::playerID2Mask[player]))
 						{
-							
-							//检测此玩家是不是跑不掉了，只对必中的目标开火
+							//记录自己是不是躲不开
+							bool canNotHide = (gameField.fieldStatic[x.row][x.col] & Pacman::direction2OpposingWall[(dir + 1) % 4])
+								&& (gameField.fieldStatic[x.row][x.col] & Pacman::direction2OpposingWall[(dir +3) % 4]);
+							//先记录此方向有人
+							shootData[dir]++;
+							//检测此玩家是不是跑不掉了
 							if (
-								(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
-								&& (gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir - 1) % 4])
+								(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir + 1) % 4])
+								&& (gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir +3) % 4])
 								) {
 								//如果自己也没路跑，并且对方比自己强大或势均力敌，为避免互射致死，走为上计
 								//if ((gameField.fieldStatic[x.row][x.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
@@ -1030,6 +1036,34 @@ namespace Bot
 								//	&& gameField.players[player].strength >= gameField.players[myID].strength) {
 								//}
 								//else
+								infallibleData[dir]++;
+							}
+							//判断是否很大机会命中
+							//如果目标上回合朝我们开火,且我们没得躲
+							else if( 
+								((gameField.players[player].lastAction-4)==(dir+2)%4)
+								&&canNotHide
+								) {
+								infallibleData[dir]++;
+							}
+							//如果上回合没动，假定他这回合如果不生成果子也不动
+							else if (
+								(gameField.players[player].lastAction ==-1&&gameField.generatorTurnLeft!=0)
+								) {
+								infallibleData[dir]++;
+							}
+							//以下两个判断对方是否刚刚拐进小巷
+							else if (
+								(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir + 1) % 4])
+								&& (gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir)])
+								&& gameField.players[player].lastAction == (dir+1)%4
+								) {
+								infallibleData[dir]++;
+							}
+							else if (
+								(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir + 3) % 4])
+								&& (gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir)])
+								&& gameField.players[player].lastAction == (dir +3) % 4){
 								infallibleData[dir]++;
 							}
 						}
@@ -1042,10 +1076,31 @@ namespace Bot
 		}
 		//有人可以打当然要打啦
 		if (shootDir!= -1&&(gameField.SKILL_COST<gameField.players[myID].strength)) final = shootDir;
-		//if(myID==0) cout << "hkh永不认输!   " << final<< endl<<endl;
-		return final;
+		//如果没路走了，垂死一搏
+		if (final == -1) {
+			int maxShootNum = 0;
+			int shootDir = -1;
+			for (int dir = 0; dir < 4; dir++) {
+				if (maxShootNum < shootData[dir]) {
+					maxShootNum = shootData[dir];
+					shootDir = dir+4;
+				}
+			}
+		}
+		//最后一道防线，防止出现违规输出
+		if (final >= -1 && final <= 7)
+		{
+			shoutString = "syynb!";
+			return final;
+		}
+		else {
+			shoutString = "wo sha le";
+			return -1;
+		}
 	}
-
+	string shout() {
+		return shoutString;
+	}
 }
 
 // 一些辅助程序
@@ -1122,7 +1177,7 @@ int main()
 
 	gameField.DebugPrint();
 	
-	gameField.WriteOutput((Pacman::Direction)(Ans), "hohoho", data, globalData);
+	gameField.WriteOutput((Pacman::Direction)(Ans), Bot::shout(), data, globalData);
 #endif
 
 
