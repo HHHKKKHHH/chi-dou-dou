@@ -948,8 +948,6 @@ namespace Bot
 						if (!(gameField.fieldStatic[u.x][u.y] & Pacman::direction2OpposingWall[(Pacman::Direction)(i)])
 							&& !visALL[v.x][v.y])
 						{
-							//危险地带当然不能走
-							if (valueALL[I][J][v.x][v.y].isDanger) continue;
 							q.push(v);
 							visALL[v.x][v.y] = 1;
 							//对于初始点要特殊处理
@@ -1202,13 +1200,6 @@ namespace Bot
 		BFSd(gameField, myID, me.row, me.col);
 		//遍历全图预处理
 		BFSALL(gameField);
-		/*for (int i = 0; i < gameField.height; i++)
-		{
-			for (int j = 0; j < gameField.width; j++)
-				printf("%5d", valueALL[0][0][i][j].dis);
-			cout << endl;
-		}*/
-
 
 		final = Eat(gameField, myID, shoutString, final,douDis,douDir,genDis,genDir,me.row,me.col);
 		
