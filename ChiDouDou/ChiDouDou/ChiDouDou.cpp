@@ -910,7 +910,7 @@ namespace Bot
 			}
 		}
 	}
-	
+
 	void BFSd(Pacman::GameField& gameField, int myID, int nowx, int nowy)//BFS遍历图上所有点
 	{
 		queue <location>q;
@@ -959,7 +959,6 @@ namespace Bot
 		
 		dangerJustify(gameField, myID);
 		BFSd(gameField, myID, me.row, me.col);
-
 		//枚举图上所有点找最近的豆子
 		for (int i = 0; i < gameField.height; i++)
 			for (int j = 0; j < gameField.width; j++)
