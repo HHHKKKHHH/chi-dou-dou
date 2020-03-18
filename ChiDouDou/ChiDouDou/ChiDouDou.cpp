@@ -852,7 +852,7 @@ namespace Bot
 	};
 	int vis[20][20] = {};//是否访问过
 	justify valueMap[20][20] = {};//记录BFS的结果
-	int infallibleData[4] = {0,0,0,0};//记录当前位置四个方向上必定能打到的人数，排序：上 右 下 左
+	int musrShootData[4] = {0,0,0,0};//记录当前位置四个方向上必定能打到的人数，排序：上 右 下 左
 	int shootData[4] = {0,0,0,0};//记录当前位置四个方向上能打到的人数，排序：上 右 下 左
 			//最优豆子信息
 	int douDis = infDis, douDir = -1;
@@ -869,7 +869,7 @@ namespace Bot
 		douDis = infDis, douDir = -1;
 		genDis = infDis, genDir = -1;
 		for (int i = 0; i < 4; i++) {
-			infallibleData[i] = 0;
+			musrShootData[i] = 0;
 			shootData[i] = 0;
 		}
 		for (int x = 0; x < gameField.height; x++)
@@ -895,17 +895,17 @@ namespace Bot
 			Pacman::Player& aPlayer = gameField.players[player];
 			if (gameField.fieldContent[aPlayer.row][aPlayer.col] & Pacman::playerID2Mask[player])
 				{
-							if (gameField.players[player].strength > gameField.players[myID].strength) 
-							{
-								//不能直接走到人家嘴里去
-								valueMap[aPlayer.row][aPlayer.col].isDanger = true;
-								//把坏家伙旁边的可达点也设为危险，避免傻屌行为暴毙
-								for (int dir = 0; dir < 4; dir++) {
-									if (!(gameField.fieldStatic[aPlayer.row][aPlayer.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir)])) {
-										valueMap[(aPlayer.row + Pacman::dy[dir]) % gameField.height][(aPlayer.col + Pacman::dx[dir]) % gameField.width].isDanger = true;
-									}
-								}
-							}
+				if (gameField.players[player].strength > gameField.players[myID].strength) 
+				{
+					//不能直接走到人家嘴里去
+					valueMap[aPlayer.row][aPlayer.col].isDanger = true;
+					//把坏家伙旁边的可达点也设为危险，避免傻屌行为暴毙
+					for (int dir = 0; dir < 4; dir++) {
+						if (!(gameField.fieldStatic[aPlayer.row][aPlayer.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir)])) {
+										valueMap[(aPlayer.row + Pacman::dy[dir] + gameField.height) % gameField.height][(aPlayer.col + Pacman::dx[dir]+ gameField.width) % gameField.width].isDanger = true;
+						}
+					}
+				}
 	
 			}
 		}
@@ -939,13 +939,14 @@ namespace Bot
 				if (!(gameField.fieldStatic[u.x][u.y] & Pacman::direction2OpposingWall[(Pacman::Direction)(i)]) 
 					&& !vis[v.x][v.y])
 				{
-					//危险地带当然不能走
+					//危险地带当然不能走，直接跳过可以理解成让程序绕路
 					if (valueMap[v.x][v.y].isDanger) continue;
 					q.push(v);
 					vis[v.x][v.y] = 1;
-					//对于初始点要特殊处理
+					//对于初始点要特殊处理，否则当所在点为危险时，其他所有点都是inf啦
 					if (u.x == nowx && u.y == nowy) valueMap[v.x][v.y].dis = 1;
 					else valueMap[v.x][v.y].dis = valueMap[u.x][u.y].dis + 1;
+
 					if (u.x == nowx && u.y == nowy) valueMap[v.x][v.y].dir = i;//起始点方向记录
 					else valueMap[v.x][v.y].dir = valueMap[u.x][u.y].dir;//传递方向
 				}
@@ -959,6 +960,7 @@ namespace Bot
 		
 		dangerJustify(gameField, myID);
 		BFSd(gameField, myID, me.row, me.col);
+		
 
 		//枚举图上所有点找最近的豆子
 		for (int i = 0; i < gameField.height; i++)
@@ -968,10 +970,22 @@ namespace Bot
 				if (((gameField.fieldContent[i][j] & Pacman::smallFruit)
 					||(gameField.fieldContent[i][j] & Pacman::largeFruit))
 					&&(!(gameField.fieldContent[i][j] & Pacman::playerMask)))
-					if (douDis > valueMap[i][j].dis)
+					if ((douDis >= valueMap[i][j].dis)&&!(valueMap[i][j].dis == infDis))
 					{
-						douDis = valueMap[i][j].dis;
-						douDir = valueMap[i][j].dir;
+						
+							if (douDis > valueMap[i][j].dis) {
+								douDis = valueMap[i][j].dis;
+								douDir = valueMap[i][j].dir;
+							}
+							//如果遇到一样近的，那么随机选择要不要选择此果实，防止出现两人一直重叠
+							else {
+								if (rand() % 2) {
+									douDis = valueMap[i][j].dis;
+									douDir = valueMap[i][j].dir;
+								}
+							}
+						
+						
 					}
 			}
 		//暂时先决定去吃豆子
@@ -1009,8 +1023,17 @@ namespace Bot
 		for (int dir = 0; dir < 4; dir++) {
 			int r = me.row;
 			int c = me.col;
+			int distance = 0;
+			//如果不开枪下回合自己的位置
+			int nextR = me.row;
+			int nextC= me.col;
+			if (final != -1) {
+				 nextR = (me.row + Pacman::dy[final] + gameField.height) % gameField.height;
+				nextC = (me.col + Pacman::dx[final] + gameField.width) % gameField.width;
+			}
 			while (!(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[dir]))
 			{
+				distance++;
 				r = (r + Pacman::dy[dir] + gameField.height) % gameField.height;
 				c = (c + Pacman::dx[dir] + gameField.width) % gameField.width;
 
@@ -1019,11 +1042,18 @@ namespace Bot
 					break;
 				if (gameField.fieldContent[r][c] & Pacman::playerMask)
 					for (int player = 0; player < MAX_PLAYER_COUNT; player++)
-						if (player != myID&&(gameField.fieldContent[r][c] & Pacman::playerID2Mask[player]))
+						if (player != myID && (gameField.fieldContent[r][c] & Pacman::playerID2Mask[player]))
 						{
 							//记录自己是不是躲不开
 							bool canNotHide = (gameField.fieldStatic[me.row][me.col] & Pacman::direction2OpposingWall[(dir + 1) % 4])
-								&& (gameField.fieldStatic[me.row][me.col] & Pacman::direction2OpposingWall[(dir +3) % 4]);
+								&& (gameField.fieldStatic[me.row][me.col] & Pacman::direction2OpposingWall[(dir + 3) % 4]);
+							
+							//记录下回合是不是也躲不开
+							bool nextCanNotHide = (final == -1)
+								||
+								((final == dir||final==(dir+2)%4) 
+								&& (gameField.fieldStatic[nextR][nextC] & Pacman::direction2OpposingWall[(dir + 1) % 4])
+								&& (gameField.fieldStatic[nextR][nextC] & Pacman::direction2OpposingWall[(dir + 3) % 4]));
 							//先记录此方向有人
 							shootData[dir]++;
 							//检测此玩家是不是跑不掉了
@@ -1037,43 +1067,45 @@ namespace Bot
 								//	&& gameField.players[player].strength >= gameField.players[myID].strength) {
 								//}
 								//else
-								infallibleData[dir]++;
+								musrShootData[dir]++;
 							}
 							//判断是否很大机会命中
-							//如果比我们弱小的目标上回合朝我们开火,且我们没得躲,那就对射
-							else if( 
-								((gameField.players[player].lastAction-4)==(dir+2)%4)
-								&&canNotHide
+							//如果我们没得躲,且对方比较弱，那就对射
+							else if( canNotHide
 								&& gameField.players[player].strength <= gameField.players[myID].strength
 								) {
-								infallibleData[dir]++;
+								musrShootData[dir]++;
+							}
+							//如果下回合也躲不开，那不管咋样都得打
+							else if (canNotHide && nextCanNotHide) {
+								musrShootData[dir]++;
 							}
 							//如果上回合没动，假定他这回合如果不生成果子也不动
 							else if (
 								(gameField.players[player].lastAction ==-1&&gameField.generatorTurnLeft!=0)
 								) {
-								infallibleData[dir]++;
+								musrShootData[dir]++;
 							}
 							//以下两个判断对方是否刚刚拐进小巷，拐进来的就是送上门啦（除了某些丧心病狂的程序还会躲
 							else if (
 								(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir + 1) % 4])
-								
+								&&distance>1
 								&& gameField.players[player].lastAction == (dir+1)%4
 								) {
-								infallibleData[dir]++;
+								musrShootData[dir]++;
 							}
 							else if (
 								(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir + 3) % 4])
-								
+								&& distance > 1
 								&& gameField.players[player].lastAction == (dir +3) % 4){
-								infallibleData[dir]++;
+								musrShootData[dir]++;
 							}
 						}
 			}
 			//挑出目标最多的方向打
-			if (infallibleData[dir] > maxTargetNum ) {
+			if (musrShootData[dir] > maxTargetNum ) {
 				shootDir = dir + 4;
-				maxTargetNum = infallibleData[dir];
+				maxTargetNum = musrShootData[dir];
 			}
 		}
 		//有人可以打当然要打啦(前提是不处在危险之中)
@@ -1083,27 +1115,37 @@ namespace Bot
 				shoutString = "我射";
 			}
 		}
-		//如果没路走了，垂死一搏
-		if (final == -1) {
-			int maxShootNum = 0;
+		//如果到了死路
+		if (final == -1&& valueMap[me.row][me.col].isDanger) {
+			//能跑先跑
 			for (int dir = 0; dir < 4; dir++) {
-				if (maxShootNum < shootData[dir]) {
-					maxShootNum = shootData[dir];
-					shootDir = dir+4;
-					shoutString = "跟你拼了";
+				if ((gameField.fieldStatic[me.row][me.col] & Pacman::direction2OpposingWall[dir])&&
+					(valueMap[(me.row + Pacman::dy[dir] + gameField.height) % gameField.height][(me.col + Pacman::dx[dir] + gameField.width) % gameField.width].dis != infDis)) {
+					final = dir;
 				}
 			}
+			//实在不能跑就拼啦
+			if (final == -1) {
+				int maxShootNum = 0;
+				for (int dir = 0; dir < 4; dir++) {
+					if (maxShootNum < shootData[dir]) {
+						maxShootNum = shootData[dir];
+						shootDir = dir + 4;
+						shoutString = "跟你拼啦！";
+					}
+				}
+				final = shootDir;
+			}
 			
-			final = shootDir;
 		}
 		//最后一道防线，防止出现违规输出
 		if (final >= -1 && final <= 7)
 		{
-			if (final == -1) shoutString = "以静制动";
+			if (final == -1) shoutString = "敌不动我不动敌";
 			return final;
 		}
 		else {
-			shoutString = "bugggg";
+			shoutString = "bugggg了";
 			return -1;
 		}
 	}
