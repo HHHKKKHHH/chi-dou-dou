@@ -1133,6 +1133,66 @@ namespace Bot
 		return final;
 	}
 
+	//吃豆子
+	int Eat(Pacman::GameField& gameField, int myID, string& shoutString, int final, int& douDis, int& douDir, int& genDis, int& genDir, int X, int Y)
+	{
+		//枚举图上所有点找最近的豆子
+		for (int i = 0; i < gameField.height; i++)
+			for (int j = 0; j < gameField.width; j++)
+			{
+				//暂时大果子小果子都要，并且判定是否有人重叠于果子上
+				if (((gameField.fieldContent[i][j] & Pacman::smallFruit)
+					|| (gameField.fieldContent[i][j] & Pacman::largeFruit))
+					&& (!(gameField.fieldContent[i][j] & Pacman::playerMask)))
+					if ((douDis >= valueALL[X][Y][i][j].dis) && !(valueALL[X][Y][i][j].dis == infDis))
+					{
+						if (douDis > valueALL[X][Y][i][j].dis) {
+							douDis = valueALL[X][Y][i][j].dis;
+							douDir = valueALL[X][Y][i][j].dir;
+						}
+						//如果遇到一样近的，那么随机选择要不要选择此果实，防止出现两人一直重叠
+						else {
+							if (rand() % 2)
+							{
+								douDis = valueALL[X][Y][i][j].dis;
+								douDir = valueALL[X][Y][i][j].dir;
+							}
+						}
+					}
+			}
+		//暂时先决定去吃豆子
+		if (douDir != infDis) {
+			shoutString = "恰恰恰~";
+			final = douDir;
+		}
+		if (douDis == infDis)
+		{
+			//找最近的豆子产生器（先粗略找一下,只有场地上没豆子的时候会去找）
+			for (int i = 0; i < MAX_GENERATOR_COUNT; i++)
+			{
+				justify* generatorSide[4];
+				generatorSide[0] = &(valueALL[X][Y][(gameField.generators[i].row + gameField.height) % gameField.height][(gameField.generators[i].col + gameField.width - 1) % gameField.width]);
+				generatorSide[1] = &(valueALL[X][Y][(gameField.generators[i].row + gameField.height) % gameField.height][(gameField.generators[i].col + 1 + gameField.width) % gameField.width]);
+				generatorSide[2] = &(valueALL[X][Y][(gameField.generators[i].row + 1 + gameField.height) % gameField.height][(gameField.generators[i].col) % gameField.width]);
+				generatorSide[3] = &(valueALL[X][Y][(gameField.generators[i].row - 1 + gameField.height) % gameField.height][(gameField.generators[i].col) % gameField.width]);
+				for (int pos = 0; pos < 4; pos++)
+				{
+					if (genDis > (*generatorSide[pos]).dis)
+					{
+						genDis = (*generatorSide[pos]).dis;
+						genDir = (*generatorSide[pos]).dir;
+					}
+				}
+			}
+			//没豆子吃辣。那就去等着
+			if (genDis != infDis) {
+				shoutString = "还有的吃";
+				final = genDir;
+			}
+		}
+		return final;
+	}
+
 	int calc(Pacman::GameField& gameField, int myID)
 	{
 		init(gameField);
@@ -1150,175 +1210,11 @@ namespace Bot
 		}*/
 
 
-
-		//枚举图上所有点找最近的豆子
-		for (int i = 0; i < gameField.height; i++)
-			for (int j = 0; j < gameField.width; j++)
-			{
-				//暂时大果子小果子都要，并且判定是否有人重叠于果子上
-				if (((gameField.fieldContent[i][j] & Pacman::smallFruit)
-					||(gameField.fieldContent[i][j] & Pacman::largeFruit))
-					&&(!(gameField.fieldContent[i][j] & Pacman::playerMask)))
-					if ((douDis >= valueMap[i][j].dis)&&!(valueMap[i][j].dis == infDis))
-					{
-						if (douDis > valueMap[i][j].dis) {
-							douDis = valueMap[i][j].dis;
-							douDir = valueMap[i][j].dir;
-						}
-						//如果遇到一样近的，那么随机选择要不要选择此果实，防止出现两人一直重叠
-						else {
-							if (rand() % 2) {
-									douDis = valueMap[i][j].dis;
-									douDir = valueMap[i][j].dir;
-							}
-						}	
-					}
-			}
-		//暂时先决定去吃豆子
-		if (douDir != infDis) {
-			shoutString = "恰恰恰~";
-			final = douDir;
-		}
-		
-	
-		if (douDis == infDis) {
-			//找最近的豆子产生器（先粗略找一下,只有场地上没豆子的时候会去找）
-			for (int i = 0; i < MAX_GENERATOR_COUNT; i++){
-				justify* generatorSide[4];
-				generatorSide[0] = &(valueMap[(gameField.generators[i].row) % gameField.height][(gameField.generators[i].col - 1+ gameField.width) % gameField.width]);
-				generatorSide[1] = &(valueMap[(gameField.generators[i].row) % gameField.height][(gameField.generators[i].col + 1 + gameField.width) % gameField.width]);
-				generatorSide[2] = &(valueMap[(gameField.generators[i].row + 1 + gameField.height) % gameField.height][(gameField.generators[i].col) % gameField.width]);
-				generatorSide[3] = &(valueMap[(gameField.generators[i].row - 1+ gameField.height) % gameField.height][(gameField.generators[i].col) % gameField.width]);
-				for (int pos = 0; pos < 4; pos++) {
-					if (genDis > (*generatorSide[pos]).dis) {
-						genDis = (*generatorSide[pos]).dis;
-						genDir = (*generatorSide[pos]).dir;
-					}
-				}
-			}
-			//没豆子吃辣。那就去等着
-			if (genDis != infDis) {
-				shoutString = "还有的吃";
-				final = genDir;
-			}
-				
-		};
+		final = Eat(gameField, myID, shoutString, final,douDis,douDir,genDis,genDir,me.row,me.col);
 		
 		final = Shot(gameField, myID, shoutString, me, final);
-		//遍历四个方向看看有没有人可以打
-		/*
-		int shootDir = -1;
-		int maxTargetNum = 0;
-		for (int dir = 0; dir < 4; dir++) {
-			int r = me.row;
-			int c = me.col;
-			int distance = 0;
-			//如果不开枪下回合自己的位置
-			int nextR = me.row;
-			int nextC= me.col;
-			if (final != -1) {
-				 nextR = (me.row + Pacman::dy[final] + gameField.height) % gameField.height;
-				nextC = (me.col + Pacman::dx[final] + gameField.width) % gameField.width;
-			}
-			while (!(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[dir]))
-			{
-				distance++;
-				r = (r + Pacman::dy[dir] + gameField.height) % gameField.height;
-				c = (c + Pacman::dx[dir] + gameField.width) % gameField.width;
 
-				// 如果转了一圈回来……
-				if (r == me.row && c == me.col)
-					break;
-				if (gameField.fieldContent[r][c] & Pacman::playerMask)
-					for (int player = 0; player < MAX_PLAYER_COUNT; player++)
-						if (player != myID && (gameField.fieldContent[r][c] & Pacman::playerID2Mask[player]))
-						{
-							//记录自己是不是躲不开
-							bool canNotHide = (gameField.fieldStatic[me.row][me.col] & Pacman::direction2OpposingWall[(dir + 1) % 4])
-								&& (gameField.fieldStatic[me.row][me.col] & Pacman::direction2OpposingWall[(dir + 3) % 4]);
-							
-							//记录下回合是不是也躲不开
-							bool nextCanNotHide = (final == -1)
-								||
-								((final == dir||final==(dir+2)%4) 
-								&& (gameField.fieldStatic[nextR][nextC] & Pacman::direction2OpposingWall[(dir + 1) % 4])
-								&& (gameField.fieldStatic[nextR][nextC] & Pacman::direction2OpposingWall[(dir + 3) % 4]));
-							//先记录此方向有人
-							shootData[dir]++;
-							//检测此玩家是不是跑不掉了
-							if (
-								(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir + 1) % 4])
-								&& (gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir +3) % 4])
-								) {
-								//如果自己也没路跑，并且对方比自己强大或势均力敌，为避免互射致死，走为上计
-								//if ((gameField.fieldStatic[x.row][x.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
-								//	&& (gameField.fieldStatic[x.row][x.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
-								//	&& gameField.players[player].strength >= gameField.players[myID].strength) {
-								//}
-								//else
-								mustShootData[dir]++;
-							}
-							//判断是否很大机会命中
-							//如果我们没得躲,且对方比较弱，那就对射
-							else if( canNotHide
-								&& gameField.players[player].strength <= gameField.players[myID].strength
-								) {
-								mustShootData[dir]++;
-							}
-							//如果下回合也躲不开，那不管咋样都得打
-							else if (canNotHide && nextCanNotHide) {
-								mustShootData[dir]++;
-							}
-							//如果上回合没动，假定他这回合如果不生成果子也不动
-							else if (
-								(gameField.players[player].lastAction ==-1&&gameField.generatorTurnLeft!=0)
-								) {
-								mustShootData[dir]++;
-							}
-							//以下两个判断对方是否刚刚拐进小巷，拐进来的就是送上门啦（除了某些丧心病狂的程序还会躲
-							//else if ((gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir + 1) % 4])&&distance>1&& gameField.players[player].lastAction == (dir+1)%4) {
-								//musrShootData[dir]++;
-							//}
-							//else if ((gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir + 3) % 4])&& distance > 1&& gameField.players[player].lastAction == (dir +3) % 4){musrShootData[dir]++;
-							//}
-						}
-			}
-			//挑出目标最多的方向打
-			if (mustShootData[dir] > maxTargetNum ) {
-				shootDir = dir + 4;
-				maxTargetNum = mustShootData[dir];
-			}
-		}
-		//有人可以打当然要打啦(前提是不处在危险之中)
-		if (shootDir != -1 && (gameField.SKILL_COST < gameField.players[myID].strength)) {
-			if(!valueMap[me.row][me.col].isDanger){ 
-				final = shootDir; 
-				shoutString = "我射";
-			}
-		}
-		//如果到了死路，路被封死了
-		if (final == -1&& valueMap[me.row][me.col].isDanger) {
-			//能跑先跑
-			for (int dir = 0; dir < 4; dir++) {
-				if ((gameField.fieldStatic[me.row][me.col] & Pacman::direction2OpposingWall[dir])&&
-					(valueMap[(me.row + Pacman::dy[dir] + gameField.height) % gameField.height][(me.col + Pacman::dx[dir] + gameField.width) % gameField.width].dis != infDis)) {
-					final = dir;
-				}
-			}
-			//实在不能跑就拼啦
-			if (final == -1&& (gameField.SKILL_COST < gameField.players[myID].strength)) {
-				int maxShootNum = 0;
-				for (int dir = 0; dir < 4; dir++) {
-					if (maxShootNum < shootData[dir]) {
-						maxShootNum = shootData[dir];
-						shootDir = dir + 4;
-						shoutString = "跟你拼啦！";
-					}
-				}
-				final = shootDir;
-			}
-			
-		}*/
+
 		//最后一道防线，防止出现违规输出
 		if (final >= -1 && final <= 7)
 		{
