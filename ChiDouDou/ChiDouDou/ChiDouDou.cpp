@@ -863,6 +863,11 @@ namespace Bot
 	//叫嚣语句
 	string shoutString = "";
 
+
+	justify valueALL[20][20][20][20] = {};//记录全图BFS结果
+	int visALL[20][20] = {};
+
+
 	//便于本地调试，每次都初始化
 	void init(Pacman::GameField& gameField) {
 		final = -1;
@@ -910,7 +915,56 @@ namespace Bot
 			}
 		}
 	}
-	
+
+	//预处理图上任意两点之间距离及第一步方向
+	void BFSALL(Pacman::GameField& gameField)
+	{
+		for (int I = 0; I < gameField.height; I++)
+		{
+			for (int J = 0; J < gameField.width; J++)
+			{
+				queue <location>q;
+				while (!q.empty()) q.pop();
+				memset(visALL, 0, sizeof(visALL));
+				visALL[I][J] = 1;
+				q.push(location(I, J));
+				if (!valueALL[I][J][I][J].isDanger)
+					valueALL[I][J][I][J].dis = 0;
+				location u, v;
+				while (!q.empty())
+				{
+					u = q.front();
+					q.pop();
+					for (int i = 0; i < 4; i++)
+					{
+						v.x = u.x + Pacman::dy[i];
+						v.y = u.y + Pacman::dx[i];
+						//边界判定
+						if (v.x < 0) v.x += gameField.height;
+						if (v.x >= gameField.height) v.x -= gameField.height;
+						if (v.y < 0) v.y += gameField.width;
+						if (v.y >= gameField.width) v.y -= gameField.width;
+						//(u.x,u.y)到(v.x,v.y)方向上没有墙，(v.x,v.y)不是豆子产生器，(v.x,v.y)没走过
+						if (!(gameField.fieldStatic[u.x][u.y] & Pacman::direction2OpposingWall[(Pacman::Direction)(i)])
+							&& !visALL[v.x][v.y])
+						{
+							//危险地带当然不能走
+							if (valueALL[I][J][v.x][v.y].isDanger) continue;
+							q.push(v);
+							visALL[v.x][v.y] = 1;
+							//对于初始点要特殊处理
+							if (u.x == I && u.y == J) valueALL[I][J][v.x][v.y].dis = 1;
+							else valueALL[I][J][v.x][v.y].dis = valueALL[I][J][u.x][u.y].dis + 1;
+							if (u.x == I && u.y == J) valueALL[I][J][v.x][v.y].dir = i;//起始点方向记录
+							else valueALL[I][J][v.x][v.y].dir = valueALL[I][J][u.x][u.y].dir;//传递方向
+						}
+					}
+				}
+			}
+		}
+	}
+
+
 	void BFSd(Pacman::GameField& gameField, int myID, int nowx, int nowy)//BFS遍历图上所有点
 	{
 		queue <location>q;
@@ -953,6 +1007,8 @@ namespace Bot
 			}
 		}
 	}
+
+
 	int calc(Pacman::GameField& gameField, int myID)
 	{
 		init(gameField);
@@ -960,7 +1016,16 @@ namespace Bot
 		
 		dangerJustify(gameField, myID);
 		BFSd(gameField, myID, me.row, me.col);
-		
+		//遍历全图预处理
+		BFSALL(gameField);
+		/*for (int i = 0; i < gameField.height; i++)
+		{
+			for (int j = 0; j < gameField.width; j++)
+				printf("%5d", valueALL[0][0][i][j].dis);
+			cout << endl;
+		}*/
+
+
 
 		//枚举图上所有点找最近的豆子
 		for (int i = 0; i < gameField.height; i++)
