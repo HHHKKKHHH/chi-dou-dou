@@ -59,6 +59,7 @@ using std::endl;
 using std::getline;
 using std::runtime_error;
 using std::queue;
+using std::sort;
 
 // 平台提供的吃豆人相关逻辑处理程序
 namespace Pacman
@@ -850,6 +851,30 @@ namespace Bot
 		justify() { dis = infDis; dir = -1; isDanger = false; value = 0; }
 		justify(int x, int y) :dis(x), dir(y) { isDanger = false; value = 0; }
 	};
+
+	struct valDou
+	{
+		double sum;//豆子分值
+		int x;
+		int y;
+		int big;//是否为大豆子
+		int dist;//距离当前点的距离
+		int numNear;//距离接近的豆子数
+		int totNear;//距离接近的豆子总距离
+		int Nearest;//从当前豆子出发到达豆子距离接近的所有豆子的最短路径
+	};
+
+	struct Node//结点
+	{
+		int u;
+		int v;
+		int w;
+	}Edge[160005];
+
+
+	const int Near = 3;//考虑两个豆子是否是接近的距离标准，待定
+
+
 	int vis[20][20] = {};//是否访问过
 	justify valueMap[20][20] = {};//记录BFS的结果
 	int mustShootData[4] = {0,0,0,0};//记录当前位置四个方向上必定能打到的人数，排序：上 右 下 左
@@ -866,7 +891,7 @@ namespace Bot
 
 	justify valueALL[20][20][20][20] = {};//记录全图BFS结果
 	int visALL[20][20] = {};
-
+	
 
 	//便于本地调试，每次都初始化
 	void init(Pacman::GameField& gameField) {
@@ -1130,14 +1155,25 @@ namespace Bot
 		}
 		return final;
 	}
-
 	//吃豆子
+
+	bool cmp(Node x ,Node y)
+	{
+		return x.w < y.w;
+	}
+
 	int Eat(Pacman::GameField& gameField, int myID, string& shoutString, int final, int& douDis, int& douDir, int& genDis, int& genDir, int X, int Y)
 	{
+		valDou tot[405];
+		int NumDou = 0; location AnsEat;//可达豆子总数，最终选择吃的豆子坐标
+		for (int i = 1; i <= 400; i++) tot[i].x = tot[i].y = tot[i].big = tot[i].dist = tot[i].numNear = tot[i].totNear = tot[i].sum = 0;
+
+		/*
 		//枚举图上所有点找最近的豆子
 		for (int i = 0; i < gameField.height; i++)
 			for (int j = 0; j < gameField.width; j++)
 			{
+
 				//暂时大果子小果子都要，并且判定是否有人重叠于果子上
 				if (((gameField.fieldContent[i][j] & Pacman::smallFruit)
 					|| (gameField.fieldContent[i][j] & Pacman::largeFruit))
@@ -1158,6 +1194,102 @@ namespace Bot
 						}
 					}
 			}
+			*/
+		
+			
+		//枚举图上所有点先找出所有可达的豆子
+		for (int i = 0; i < gameField.height; i++)
+			for (int j = 0; j < gameField.width; j++)
+			{
+				if (((gameField.fieldContent[i][j] & Pacman::smallFruit)
+					|| (gameField.fieldContent[i][j] & Pacman::largeFruit))
+					&& (!(gameField.fieldContent[i][j] & Pacman::playerMask)))
+				{
+					++NumDou;
+					if (gameField.fieldContent[i][j] & Pacman::largeFruit) tot[NumDou].big = 1;
+					tot[NumDou].x = i; tot[NumDou].y = j; tot[NumDou].dist = valueALL[X][Y][i][j].dis;
+				}
+			}
+		//再对每个豆子进行价值计算，考虑的因素包括与当前点距离，豆子周围“接近”的豆子数量
+		for (int i = 1; i < NumDou; i++)
+		{
+			for (int j = i+1; j <= NumDou; j++)
+			{
+				if (valueALL[tot[i].x][tot[i].y][tot[j].x][tot[j].y].dis <= Near)
+				{
+					tot[i].numNear++; tot[j].numNear++;
+					tot[i].totNear += valueALL[tot[i].x][tot[i].y][tot[j].x][tot[j].y].dis; 
+					tot[j].totNear += valueALL[tot[i].x][tot[i].y][tot[j].x][tot[j].y].dis;
+				}
+			}
+		}
+
+		//计算从目标豆子出发到达所有距离接近的豆子的最短路径（即求一个最小生成树）
+		int Node[405], NumNode=0,fNode[405];
+		for (int i = 1; i <= NumDou; i++)
+		{
+			memset(Edge, 0, sizeof(Edge));
+			memset(Node, 0, sizeof(Node));
+			int NumEdge = 0, tmp = 0;
+			NumNode = 0;
+			Node[++NumNode] = i;
+			for (int j = 1; j <= NumNode; j++)
+			{
+				fNode[j] = j;//标记集合
+			}
+			for (int j = 1; j <= NumDou; j++)
+			{
+				if (i == j) continue;
+				if (valueALL[tot[i].x][tot[i].y][tot[j].x][tot[j].y].dis <= Near) Node[++NumNode] = j;
+			}
+
+			for (int j = 1; j <= NumNode; j++)
+			{
+				for (int k = j + 1; k <= NumNode; k++)
+				{
+					Edge[++NumEdge].u = Node[j];
+					Edge[NumEdge].v = Node[k];
+					Edge[NumEdge].w = valueALL[tot[Node[j]].x][tot[Node[j]].y][tot[Node[k]].x][tot[Node[k]].y].dis;
+				}
+			}
+
+			sort(Edge + 1, Edge + NumEdge + 1, cmp);
+
+			for (int j = 1; j <= NumEdge; j++)
+			{
+				int n1 = fNode[Edge[j].u];
+				int n2 = fNode[Edge[j].v];//得到两点集合编号
+				if (n1 != n2)//不同就加入边
+				{
+					tot[i].Nearest += Edge[j].w;
+					for (int k = 1; k <= NumNode; k++)
+					{
+						if (fNode[k] == n2) fNode[k] = n1;//合并集合
+					}
+					tmp++;
+				}
+				if (tmp == NumNode - 1) break;
+			}
+		}
+			
+
+		for (int i = 1; i <= NumDou; i++)
+		{
+			tot[i].sum = tot[i].numNear - tot[i].dist + 0.01 * tot[i].big;//分值为距离接近的豆子数-距离，认为同等情况下大豆子优于小豆子
+		}
+		for (int i = 1; i <= NumDou; i++)//对豆子价值进行排序
+		{
+			for (int j = i + 1; j <= NumDou; j++)
+			{
+				if (tot[i].sum < tot[j].sum)  swap(tot[i], tot[j]);
+			}
+		}
+		if (tot[1].dist != infDis)
+		{
+			douDis = valueALL[X][Y][tot[1].x][tot[1].y].dis;
+			douDir = valueALL[X][Y][tot[1].x][tot[1].y].dir;
+		}
+
 		//暂时先决定去吃豆子
 		if (douDir != infDis) {
 			shoutString = "恰恰恰~";
