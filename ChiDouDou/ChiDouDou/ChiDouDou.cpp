@@ -59,6 +59,7 @@ using std::endl;
 using std::getline;
 using std::runtime_error;
 using std::queue;
+using std::sort;
 
 // 平台提供的吃豆人相关逻辑处理程序
 namespace Pacman
@@ -860,7 +861,16 @@ namespace Bot
 		int dist;//距离当前点的距离
 		int numNear;//距离接近的豆子数
 		int totNear;//距离接近的豆子总距离
+		int Nearest;//从当前豆子出发到达豆子距离接近的所有豆子的最短路径
 	};
+
+	struct Node//结点
+	{
+		int u;
+		int v;
+		int w;
+	}Edge[160005];
+
 
 	const int Near = 3;//考虑两个豆子是否是接近的距离标准，待定
 
@@ -1145,8 +1155,13 @@ namespace Bot
 		}
 		return final;
 	}
-
 	//吃豆子
+
+	bool cmp(Node x ,Node y)
+	{
+		return x.w < y.w;
+	}
+
 	int Eat(Pacman::GameField& gameField, int myID, string& shoutString, int final, int& douDis, int& douDir, int& genDis, int& genDir, int X, int Y)
 	{
 		valDou tot[405];
@@ -1208,6 +1223,56 @@ namespace Bot
 				}
 			}
 		}
+
+		//计算从目标豆子出发到达所有距离接近的豆子的最短路径（即求一个最小生成树）
+		int Node[405], NumNode=0,fNode[405];
+		for (int i = 1; i <= NumDou; i++)
+		{
+			memset(Edge, 0, sizeof(Edge));
+			memset(Node, 0, sizeof(Node));
+			int NumEdge = 0, tmp = 0;
+			NumNode = 0;
+			Node[++NumNode] = i;
+			for (int j = 1; j <= NumNode; j++)
+			{
+				fNode[j] = j;//标记集合
+			}
+			for (int j = 1; j <= NumDou; j++)
+			{
+				if (i == j) continue;
+				if (valueALL[tot[i].x][tot[i].y][tot[j].x][tot[j].y].dis <= Near) Node[++NumNode] = j;
+			}
+
+			for (int j = 1; j <= NumNode; j++)
+			{
+				for (int k = j + 1; k <= NumNode; k++)
+				{
+					Edge[++NumEdge].u = Node[j];
+					Edge[NumEdge].v = Node[k];
+					Edge[NumEdge].w = valueALL[tot[Node[j]].x][tot[Node[j]].y][tot[Node[k]].x][tot[Node[k]].y].dis;
+				}
+			}
+
+			sort(Edge + 1, Edge + NumEdge + 1, cmp);
+
+			for (int j = 1; j <= NumEdge; j++)
+			{
+				int n1 = fNode[Edge[j].u];
+				int n2 = fNode[Edge[j].v];//得到两点集合编号
+				if (n1 != n2)//不同就加入边
+				{
+					tot[i].Nearest += Edge[j].w;
+					for (int k = 1; k <= NumNode; k++)
+					{
+						if (fNode[k] == n2) fNode[k] = n1;//合并集合
+					}
+					tmp++;
+				}
+				if (tmp == NumNode - 1) break;
+			}
+		}
+			
+
 		for (int i = 1; i <= NumDou; i++)
 		{
 			tot[i].sum = tot[i].numNear - tot[i].dist + 0.01 * tot[i].big;//分值为距离接近的豆子数-距离，认为同等情况下大豆子优于小豆子
