@@ -42,7 +42,7 @@
 #include<queue>
 #include <stdexcept>
 #include "jsoncpp/json.h"
-
+#include <torch/torch.h>
 
 #define FIELD_MAX_HEIGHT 20
 #define FIELD_MAX_WIDTH 20
@@ -1169,10 +1169,10 @@ namespace Bot
 			for (int i = 0; i < MAX_GENERATOR_COUNT; i++)
 			{
 				justify* generatorSide[4];
-				generatorSide[0] = &(valueALL[X][Y][(gameField.generators[i].row + gameField.height) % gameField.height][(gameField.generators[i].col + gameField.width - 1) % gameField.width]);
-				generatorSide[1] = &(valueALL[X][Y][(gameField.generators[i].row + gameField.height) % gameField.height][(gameField.generators[i].col + 1 + gameField.width) % gameField.width]);
-				generatorSide[2] = &(valueALL[X][Y][(gameField.generators[i].row + 1 + gameField.height) % gameField.height][(gameField.generators[i].col) % gameField.width]);
-				generatorSide[3] = &(valueALL[X][Y][(gameField.generators[i].row - 1 + gameField.height) % gameField.height][(gameField.generators[i].col) % gameField.width]);
+				generatorSide[0] = &(valueALL[X][Y][gameField.generators[i].row][(gameField.generators[i].col + gameField.width - 1) % gameField.width]);
+				generatorSide[1] = &(valueALL[X][Y][gameField.generators[i].row ][(gameField.generators[i].col + 1 + gameField.width) % gameField.width]);
+				generatorSide[2] = &(valueALL[X][Y][(gameField.generators[i].row + 1 + gameField.height) % gameField.height][(gameField.generators[i].col)]);
+				generatorSide[3] = &(valueALL[X][Y][(gameField.generators[i].row - 1 + gameField.height) % gameField.height][(gameField.generators[i].col)]);
 				for (int pos = 0; pos < 4; pos++)
 				{
 					if (genDis > (*generatorSide[pos]).dis)
@@ -1275,6 +1275,34 @@ namespace Helpers
 			gameField.PopState();
 	}
 }
+
+
+struct Net : torch::nn::Module {
+	Net() {
+		// Construct and register two Linear submodules.
+		fc1 = register_module("fc1", torch::nn::Linear(2433, 2048));
+		fc2 = register_module("fc2", torch::nn::Linear(2048, 1024));
+		fc3 = register_module("fc3", torch::nn::Linear(1024, 128));
+		fc4 = register_module("fc4", torch::nn::Linear(128,9))
+	}
+
+	// Implement the Net's algorithm.
+	torch::Tensor forward(torch::Tensor x) {
+		// Use one of many tensor manipulation functions.
+		x = torch::relu(fc1->forward(x.reshape({ x.size(0), 784 })));
+		x = torch::dropout(x, /*p=*/0.5, /*train=*/is_training());
+		x = torch::relu(fc2->forward(x));
+		x = torch::log_softmax(fc3->forward(x), /*dim=*/1);
+		return x;
+	}
+
+	// Use one of many "standard library" modules.
+	torch::nn::Linear fc1{ nullptr }, fc2{ nullptr }, fc3{ nullptr }, fc4{ nullptr };
+};
+
+
+
+
 int main()
 {
 	Pacman::GameField gameField;
