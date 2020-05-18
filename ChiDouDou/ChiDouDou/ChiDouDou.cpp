@@ -975,6 +975,7 @@ namespace Bot
 						if (!(gameField.fieldStatic[u.x][u.y] & Pacman::direction2OpposingWall[(Pacman::Direction)(i)])
 							&& !visALL[v.x][v.y])
 						{
+							if (valueMap[v.x][v.y].isDanger) continue;//危险点绕路
 							q.push(v);
 							visALL[v.x][v.y] = 1;
 							//对于初始点要特殊处理
