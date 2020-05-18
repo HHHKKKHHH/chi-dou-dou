@@ -1,7 +1,7 @@
 
 import json 
-from math import ceil
-
+import math
+import numpy as np
 
 class Player:
     def __init__(self, idi=0, x=0, y=0):        
@@ -9,230 +9,237 @@ class Player:
         self.strength = 1        
         self.x = x        
         self.y = y        
-        self.enhance = 0        
+        self.isBig = 0        
         self.dead = False
 class Generator:
     def __init__(self, x = 0, y = 0):        
         self.x = x        
         self.y = y
 class Pacman:       
-    state_cnt = 0
-    pls = [Player() for i in range(4)] 
-    gts = [Generator() for j in range(4)] 
-    gts_cnt = 0
-    dx = [-1, 0, 1, 0, -1, 1, 1, -1]
-    dy = [0, 1, 0, -1, 1, 1, -1, -1]
-    width = 1
-    height = 1
-    actions = [-1] * 4 
-    aliveCnt = 4 
-    
-    smallCnt = 0 
-    turn_id = 0
-    skill_cost = 4
-    gameStatic = []
-    gameContent = []
-    my_id = 0
-    generatorLeftTurns = 20 
+
     def actionValid(self,pl, move):    
         if move == -1:        
             return True    
         if move >= 4:        
-            return move < 8 and pls[pl].strength > skill_cost    
-        return move >= 0 and move < 4 and not(gameStatic[pls[pl].x][pls[pl].y] & (1 << move))
-    def nextTurn(self):    
+            return move < 8 and self.players[pl].strength > self.skillCost    
+        return move >= 0 and move < 4 and not(self.gameStatic[self.players[pl].x][self.players[pl].y] & (1 << move))
+    def nextTurn(self,actionsInput):
+        actions = actionsInput    
         # invalid input    
         for i in range(4):        
-            if not(pls[i].dead):            
+            if not(self.players[i].dead):            
                 ac = actions[i]            
                 if ac == -1:                
                     continue            
-                if not(actionValid(i, ac)):                
-                    gameContent[pls[i].x][pls[i].y] &= (~(1 << pls[i].idi))                
-                    pls[i].strength = 0                
-                    pls[i].dead = True                
+                if not(self.actionValid(i, ac)):                
+                    self.gameContent[self.players[i].x][self.players[i].y] &= (~(1 << self.players[i].id))                
+                    self.players[i].strength = 0                
+                    self.players[i].dead = True                
                        
-                    aliveCnt -= 1            
+                    self.aliveNum -= 1            
                 elif ac < 4:                
-                    nx = (pls[i].x + dx[ac] + height) % height                
-                    ny = (pls[i].y + dy[ac] + width) % width                
-                    nxtp = gameContent[nx][ny]                
+                    nx = (self.players[i].x + self.dx[ac] + self.height) % self.height                
+                    ny = (self.players[i].y + self.dy[ac] + self.width) % self.width                
+                    nxtp = self.gameContent[nx][ny]                
                     if nxtp & (1 | 2 | 4 | 8):                    
                         for j in range(4):                        
-                            if (nxtp & (1 << j)) and pls[j].strength > pls[i].strength:         
+                            if (nxtp & (1 << j)) and self.players[j].strength > self.players[i].strength:         
                                 actions[i] = -1 
                                 
         for i in range(4):        
-            if pls[i].dead or actions[i] == -1 or actions[i] >= 4:            
+            if self.players[i].dead or actions[i] == -1 or actions[i] >= 4:            
                 continue         
             ac = actions[i]        
-            gameContent[pls[i].x][pls[i].y] &= (~(1 << i))        
-            npx = (pls[i].x + dx[ac] + height) % height
-            npy = (pls[i].y + dy[ac] + width) % width
-            pls[i].x, pls[i].y = npx, npy        
-            gameContent[npx][npy] |= (1 << i)
+            self.gameContent[self.players[i].x][self.players[i].y] &= (~(1 << i))        
+            npx = (self.players[i].x + self.dx[ac] + self.height) % self.height
+            npy = (self.players[i].y + self.dy[ac] + self.width) % self.width
+            self.players[i].x, self.players[i].y = npx, npy        
+            self.gameContent[npx][npy] |= (1 << i)
         for i in range(4):        
-            if pls[i].dead:            
+            if self.players[i].dead:            
                 continue       
-            px, py = pls[i].x, pls[i].y        
+            px, py = self.players[i].x, self.players[i].y        
             player, cnt = 0, 0        
             con_players = [0] * 4        
             for player in range(4):            
-                if gameContent[px][py] & (1 << player):                
+                if self.gameContent[px][py] & (1 << player):                
                     con_players[cnt] = player                
                     cnt += 1        
             if cnt > 1:            
                 for k in range(cnt):                
                     for j in range(cnt - k - 1):                    
-                        if pls[con_players[j]].strength < pls[con_players[j + 1]].strength:                        
+                        if self.players[con_players[j]].strength < self.players[con_players[j + 1]].strength:                        
                             con_players[j], con_players[j + 1] = con_players[j + 1], con_players[j]            
                 beg = 0 
                 for beg in range(1, cnt):                
-                    if pls[con_players[beg - 1]].strength > pls[con_players[beg]].strength:     
+                    if self.players[con_players[beg - 1]].strength > self.players[con_players[beg]].strength:     
                         break            
                     ltstren = 0            
                     for k in range(beg, cnt):                
                         pid = con_players[k]                
-                        gameContent[pls[pid].x][pls[pid].y] &= (~(1 << pid))                
-                        pls[pid].dead = True                
-                        drop = pls[pid].strength / 2                
+                        self.gameContent[self.players[pid].x][self.players[pid].y] &= (~(1 << pid))                
+                        self.players[pid].dead = True                
+                        drop = self.players[pid].strength / 2                
                         ltstren += drop                
-                        pls[pid].strength = ceil(pls[pid].strength - drop)                
-                        aliveCnt -= 1            
+                        self.players[pid].strength = math.ceil(self.players[pid].strength - drop)                
+                        self.aliveNum -= 1            
                     inc = int(ltstren / beg)            
                     for k in range(beg):                
                         pid = con_players[k]                
-                        pls[pid].strength += inc 
+                        self.players[pid].strength += inc 
             for i in range(4):        
-                if pls[i].dead or actions[i] < 4:            
+                if self.players[i].dead or actions[i] < 4:            
                     continue        
-                pls[i].strength -= skill_cost        
+                self.players[i].strength -= self.skillCost        
                 dirc = actions[i] - 4        
-                r, c, pl = pls[i].x, pls[i].y, 0
-                while not(gameStatic[r][c] & (1 << dirc)):            
-                    r = (r + dx[dirc] + height) % height            
-                    c = (c + dy[dirc] + width) % width                        
-                    if r == pls[i].x and c == pls[i].y:                
+                r, c, pl = self.players[i].x, self.players[i].y, 0
+                while not(self.gameStatic[r][c] & (1 << dirc)):            
+                    r = (r + self.dx[dirc] + self.height) % self.height            
+                    c = (c + self.dy[dirc] + self.width) % self.width                        
+                    if r == self.players[i].x and c == self.players[i].y:                
                         break            
-                    if (gameContent[r][c] & 15):                
+                    if (self.gameContent[r][c] & 15):                
                         for pl in range(4):
-                            if (gameContent[r][c] & (1 << pl)):
-                                pls[pl].strength -= skill_cost * 1.5                        
-                                pls[i].strength += skill_cost * 1.5  
+                            if (self.gameContent[r][c] & (1 << pl)):
+                                self.players[pl].strength -= self.skillCost * 1.5                        
+                                self.players[i].strength += self.skillCost * 1.5  
         for i in range(4):        
-            if pls[i].dead or pls[i].strength > 0:            
+            if self.players[i].dead or self.players[i].strength > 0:            
                 continue        
-            gameContent[pls[i].x][pls[i].y] &= ~(1 << i)        
-            pls[i].dead = True        
-            pls[i].strength = 0        
-            aliveCnt -= 1     
-        generatorLeftTurns -= 1 
-        if generatorLeftTurns == 0:        
-            generatorLeftTurns += 20        
-            for i in range(4):            
+            self.gameContent[self.players[i].x][self.players[i].y] &= ~(1 << i)        
+            self.players[i].dead = True        
+            self.players[i].strength = 0        
+            self.aliveNum -= 1     
+        self.generatorLeftTurns -= 1 
+        if self.generatorLeftTurns == 0:        
+            self.generatorLeftTurns += 20        
+            for i in range(4):
+                genPic[self.generators[i].x][self.generators[i].y]  =  self.generatorLeftTurns           
                 for d in range(8):                
-                    r = (gts[i].x + dx[d] + height) % height                
-                    c = (gts[i].y + dy[d] + width) % width                
-                    if (gameStatic[r][c] & 16) or (gameContent[r][c] & (16 | 32)):   
+                    r = (self.generators[i].x + self.dx[d] + self.height) % self.height                
+                    c = (self.generators[i].y + self.dy[d] + self.width) % self.width                
+                    if (self.gameStatic[r][c] & 16) or (self.gameContent[r][c] & (16 | 32)):   
                         continue                
-                    gameContent[r][c] |= 16                             
-                    smallCnt += 1
+                    self.gameContent[r][c] |= 16                             
+                    self.smallCount += 1
         for i in range(4):        
-            if pls[i].dead:            
+            if self.players[i].dead:            
                 continue        
-            pr, pc = pls[i].x, pls[i].y        
-            if gameContent[pr][pc] & 15 & (~(1 << i)):            
+            pr, pc = self.players[i].x, self.players[i].y        
+            if self.gameContent[pr][pc] & 15 & (~(1 << i)):            
                 continue        
-            if (gameContent[pr][pc] & 16):            
-                gameContent[pr][pc] &= (~16)            
-                pls[i].strength += 1            
-                smallCnt -= 1        
-            elif gameContent[pr][pc] & 32:            
-                gameContent[pr][pc] &= (~32)            
-                if pls[i].enhance == 0:                
-                    pls[i].strength += 10            
-                pls[i].enhance += 10 
+            if (self.gameContent[pr][pc] & 16):            
+                self.gameContent[pr][pc] &= (~16)            
+                self.players[i].strength += 1            
+                self.smallCount -= 1        
+            elif self.gameContent[pr][pc] & 32:            
+                self.gameContent[pr][pc] &= (~32)            
+                if self.players[i].isBig == 0:                
+                    self.players[i].strength += 10            
+                self.players[i].isBig += 10 
         for i in range(4):       
-            if pls[i].dead:            
+            if self.players[i].dead:            
                 continue        
-            if pls[i].enhance > 0:            
-                pls[i].enhance -= 1            
-                if pls[i].enhance == 0:                
-                    pls[i].strength -= 10
+            if self.players[i].isBig > 0:            
+                self.players[i].isBig -= 1            
+                if self.players[i].isBig == 0:                
+                    self.players[i].strength -= 10
         for i in range(4):        
-            if pls[i].dead or pls[i].strength > 0:            
+            if self.players[i].dead or self.players[i].strength > 0:            
                 continue        
-            gameContent[pls[i].x][pls[i].y] &= (~(1 << i))        
-            pls[i].dead = True        
-            pls[i].strength = 0
-            aliveCnt -= 1   
-        turn_id += 1
-        if aliveCnt <= 1:        
+            self.gameContent[self.players[i].x][self.players[i].y] &= (~(1 << i))        
+            self.players[i].dead = True        
+            self.players[i].strength = 0
+            self.aliveNum -= 1   
+        self.turnId += 1
+        if self.aliveNum <= 1:        
             for i in range(4):            
-                if not(pls[i].dead):                
-                    pls[i].strength += smallCnt        
-                    return False    
-                if turn_id >= 100:        
-                    return False    
-                return True     
-    def __init__(self,data,id):   
-        my_id = id 
-        for i in range(height):        
-            for j in range(width):            
-                if gameContent[i][j] & 16:                               
-                    smallCnt += 1            
-                if gameContent[i][j] & 1:                
-                    pls[0].x, pls[0].y, pls[0].idi = i, j, 0            
-                if gameContent[i][j] & 2:                
-                    pls[1].x, pls[1].y, pls[1].idi = i, j, 1            
-                if gameContent[i][j] & 4:                
-                    pls[2].x, pls[2].y, pls[2].idi = i, j, 2            
-                if gameContent[i][j] & 8:               
-                    pls[3].x, pls[3].y, pls[3].idi = i, j, 3                 
-                if gameStatic[i][j] & 16:                              
-                    gts[gts_cnt].x, gts[gts_cnt].y = i, j                
-                    gts_cnt += 1
-    def getInMat(self,_turn, act):    
-        ind = 0    
-        feedlis = [0. for i in range(1223)]    
-        feedlis[ind] = _turn / 100    
-        ind += 1    
-        # my_id    
-        for i in range(4):        
-            if i == my_id:            
-                feedlis[ind] = 1        
-            ind += 1    
-        # strength    
-        for i in range(4):        
-            if pls[i].dead == False:            
-                feedlis[ind] = pls[i].strength / 100        
-            else:            
-                feedlis[ind] = 0        
-            ind += 1    
-        # enhance    
-        for i in range(4):        
-            feedlis[ind] = pls[i].enhance        
-            ind += 1    
-        # each grid    
-        for i in range(height):        
-            for j in range(width):            
-                # wall            
-                for k in range(4):                
-                    if gameStatic[i][j] & (1 << k):                    
-                        feedlis[ind] = 1                
-                    ind = ind + 1            
-                # player            
-                for k in range(4):                
-                    if gameContent[i][j] & (1 << k):                    
-                        feedlis[ind] = 1                
-                    ind = ind + 1            
-                # fruit            
-                if gameContent[i][j] & 16:                
-                    feedlis[ind] = 1            
-                ind += 1            
-                if gameContent[i][j] & 32:                
-                    feedlis[ind] = 1            
-                ind += 1    
-        feedlis.append(act)    
-        return feedlis
+                if not(self.players[i].dead):                
+                    self.players[i].strength += self.smallCount        
+            return False    
+        if self.turnId >= 100:        
+            return False    
+        return True     
+    def __init__(self,data): 
+        self.dx = [-1, 0, 1, 0, -1, 1, 1, -1]
+        self.dy = [0, 1, 0, -1, 1, 1, -1, -1]
+        self.players = [Player() for i in range(4)] 
+        self.generators = [Generator() for j in range(4)] 
+        self.aliveNum = 4 
+        self.smallCount = 0 
+        self.turnId = 0
+        self.generateTurnCount = 0
+        self.generatorLeftTurns=20
+        self.skillCost = 4
+        staticData = data["log"][0]["output"]["content"]["0"]
+        self.gameStatic = staticData["static"]
+        self.gameContent = staticData["content"]
+        self.width = staticData["width"]
+        self.height = staticData["height"]
+        self.upPic = [[0]*self.width]*self.height
+        self.downPic =[[0]*self.width]*self.height
+        self.leftPic = [[0]*self.width]*self.height
+        self.rightPic = [[0]*self.width]*self.height
+        self.genPic = [[0]*self.width]*self.height
+        for i in range(self.height):        
+            for j in range(self.width):   
+                if self.gameStatic[i][j] & 1:
+                    self.upPic[i][j] = 1
+                if self.gameStatic[i][j] & 2:
+                    self.rightPic[i][j] = 1
+                if self.gameStatic[i][j] & 4:
+                    self.downPic[i][j] = 1 
+                if self.gameStatic[i][j] & 8:  
+                    self.leftPic[i][j] = 1                            
+                if self.gameContent[i][j] & 16:                               
+                    self.smallCount += 1            
+                if self.gameContent[i][j] & 1:                
+                    self.players[0].x, self.players[0].y, self.players[0].id = i, j, 0            
+                if self.gameContent[i][j] & 2:                
+                    self.players[1].x, self.players[1].y, self.players[1].id = i, j, 1            
+                if self.gameContent[i][j] & 4:                
+                    self.players[2].x, self.players[2].y, self.players[2].id = i, j, 2            
+                if self.gameContent[i][j] & 8:               
+                    self.players[3].x, self.players[3].y, self.players[3].id = i, j, 3                 
+                if self.gameStatic[i][j] & 16: 
+                    self.genPic[i][j] = 20                                     
+                    self.generators[self.generateTurnCount].x, self.generators[self.generateTurnCount].y = i, j                
+                    self.generateTurnCount += 1
+
+    def getRes(self,m_id):
+        return self.players[m_id]
+    def getHeightAndWidth(self):
+        return self.height, self.width
+    def getData(self,m_id):  
+        plsPic = [[0 for i in range(self.width)]for i in range(self.height)]
+        mePic =[[0 for i in range(self.width)]for i in range(self.height)]
+        frPic = [[0 for i in range(self.width)]for i in range(self.height)]
+        for i in range(self.height):        
+            for j in range(self.width): 
+                if self.gameContent[i][j] & 16:                               
+                    frPic[i][j] = 1
+                if self.gameContent[i][j] & 32:                               
+                    frPic[i][j] = 2
+                if self.gameContent[i][j] & 1:           
+                    if (not self.players[0].dead) and (not self.players[0].id==m_id):
+                        plsPic[i][j] = self.players[0].strength
+                    if self.players[0].id==m_id:
+                        mePic[i][j] = self.players[0].strength          
+                if self.gameContent[i][j] & 2:                
+                    if (not self.players[1].dead) and (not self.players[1].id==m_id):
+                        plsPic[i][j] = self.players[1].strength      
+                    if self.players[1].id==m_id:
+                        mePic[i][j] = self.players[1].strength                          
+                if self.gameContent[i][j] & 4:  
+                    if (not self.players[2].dead) and (not self.players[2].id==m_id):              
+                        plsPic[i][j] = self.players[2].strength  
+                    if self.players[2].id==m_id:
+                        mePic[i][j] = self.players[2].strength                                  
+                if self.gameContent[i][j] & 8:               
+                    if (not self.players[3].dead) and (not self.players[3].id==m_id):              
+                        plsPic[i][j] = self.players[3].strength
+                    if self.players[3].id==m_id:
+                        mePic[i][j] = self.players[3].strength
+        return [self.upPic,self.rightPic,self.downPic,self.leftPic,self.genPic,frPic,plsPic,mePic]    
+        
  

@@ -42,7 +42,7 @@
 #include<queue>
 #include <stdexcept>
 #include "jsoncpp/json.h"
-#include <torch/torch.h>
+//#include <torch/torch.h>
 
 #define FIELD_MAX_HEIGHT 20
 #define FIELD_MAX_WIDTH 20
@@ -932,7 +932,9 @@ namespace Bot
 					//把坏家伙旁边的可达点也设为危险，避免傻屌行为暴毙
 					for (int dir = 0; dir < 4; dir++) {
 						if (!(gameField.fieldStatic[aPlayer.row][aPlayer.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir)])) {
-								valueMap[(aPlayer.row + Pacman::dy[dir] + gameField.height) % gameField.height][(aPlayer.col + Pacman::dx[dir]+ gameField.width) % gameField.width].isDanger = true;
+								valueMap
+									[(aPlayer.row + Pacman::dy[dir] + gameField.height) % gameField.height]
+									[(aPlayer.col + Pacman::dx[dir]+ gameField.width) % gameField.width].isDanger = true;
 						}
 					}
 				}
@@ -1078,11 +1080,11 @@ namespace Bot
 								&& (gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir + 3) % 4])
 								) {
 								//如果自己也没路跑，并且对方比自己强大或势均力敌，为避免互射致死，走为上计
-								//if ((gameField.fieldStatic[x.row][x.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
-								//	&& (gameField.fieldStatic[x.row][x.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
-								//	&& gameField.players[player].strength >= gameField.players[myID].strength) {
-								//}
-								//else
+								if ((gameField.fieldStatic[me.row][me.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
+									&& (gameField.fieldStatic[me.row][me.col] & Pacman::direction2OpposingWall[(Pacman::Direction)(dir + 1) % 4])
+									&& gameField.players[player].strength > gameField.players[myID].strength) {
+								}
+								else
 								mustShootData[dir]++;
 							}
 							//判断是否很大机会命中
@@ -1103,19 +1105,19 @@ namespace Bot
 								mustShootData[dir]++;
 							}
 							//以下两个判断对方是否刚刚拐进小巷，拐进来的就是送上门啦（除了某些丧心病狂的程序还会躲
-							/*else if (
+							else if (
 								(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir + 1) % 4])
 								&&distance>1
 								&& gameField.players[player].lastAction == (dir+1)%4
 								) {
-								musrShootData[dir]++;
+								mustShootData[dir]++;
 							}
 							else if (
 								(gameField.fieldStatic[r][c] & Pacman::direction2OpposingWall[(dir + 3) % 4])
 								&& distance > 1
 								&& gameField.players[player].lastAction == (dir +3) % 4){
-								musrShootData[dir]++;
-							}*/
+								mustShootData[dir]++;
+							}
 						}
 			}
 			//挑出目标最多的方向打
@@ -1161,7 +1163,9 @@ namespace Bot
 	{
 		return x.w < y.w;
 	}
+	void predictPlayers(Pacman::GameField& gameField, int myID) {
 
+	}
 	int Eat(Pacman::GameField& gameField, int myID, string& shoutString, int final, int& douDis, int& douDir, int& genDis, int& genDir, int X, int Y)
 	{
 		valDou tot[405];
@@ -1203,11 +1207,12 @@ namespace Bot
 			{
 				if (((gameField.fieldContent[i][j] & Pacman::smallFruit)
 					|| (gameField.fieldContent[i][j] & Pacman::largeFruit))
+					&&(!valueMap[i][j].isDanger)
 					&& (!(gameField.fieldContent[i][j] & Pacman::playerMask)))
 				{
 					++NumDou;
 					if (gameField.fieldContent[i][j] & Pacman::largeFruit) tot[NumDou].big = 1;
-					tot[NumDou].x = i; tot[NumDou].y = j; tot[NumDou].dist = valueALL[X][Y][i][j].dis;
+					tot[NumDou].x = i; tot[NumDou].y = j; tot[NumDou].dist = valueMap[i][j].dis;
 				}
 			}
 		//再对每个豆子进行价值计算，考虑的因素包括与当前点距离，豆子周围“接近”的豆子数量
@@ -1409,28 +1414,28 @@ namespace Helpers
 }
 
 
-struct Net : torch::nn::Module {
-	Net() {
-		// Construct and register two Linear submodules.
-		fc1 = register_module("fc1", torch::nn::Linear(2433, 2048));
-		fc2 = register_module("fc2", torch::nn::Linear(2048, 1024));
-		fc3 = register_module("fc3", torch::nn::Linear(1024, 128));
-		fc4 = register_module("fc4", torch::nn::Linear(128,9))
-	}
-
-	// Implement the Net's algorithm.
-	torch::Tensor forward(torch::Tensor x) {
-		// Use one of many tensor manipulation functions.
-		x = torch::relu(fc1->forward(x.reshape({ x.size(0), 784 })));
-		x = torch::dropout(x, /*p=*/0.5, /*train=*/is_training());
-		x = torch::relu(fc2->forward(x));
-		x = torch::log_softmax(fc3->forward(x), /*dim=*/1);
-		return x;
-	}
-
-	// Use one of many "standard library" modules.
-	torch::nn::Linear fc1{ nullptr }, fc2{ nullptr }, fc3{ nullptr }, fc4{ nullptr };
-};
+//struct Net : torch::nn::Module {
+//	Net() {
+//		// Construct and register two Linear submodules.
+//		fc1 = register_module("fc1", torch::nn::Linear(2433, 2048));
+//		fc2 = register_module("fc2", torch::nn::Linear(2048, 1024));
+//		fc3 = register_module("fc3", torch::nn::Linear(1024, 128));
+//		fc4 = register_module("fc4", torch::nn::Linear(128,9))
+//	}
+//
+//	// Implement the Net's algorithm.
+//	torch::Tensor forward(torch::Tensor x) {
+//		// Use one of many tensor manipulation functions.
+//		x = torch::relu(fc1->forward(x.reshape({ x.size(0), 784 })));
+//		x = torch::dropout(x, /*p=*/0.5, /*train=*/is_training());
+//		x = torch::relu(fc2->forward(x));
+//		x = torch::log_softmax(fc3->forward(x), /*dim=*/1);
+//		return x;
+//	}
+//
+//	// Use one of many "standard library" modules.
+//	torch::nn::Linear fc1{ nullptr }, fc2{ nullptr }, fc3{ nullptr }, fc4{ nullptr };
+//};
 
 
 

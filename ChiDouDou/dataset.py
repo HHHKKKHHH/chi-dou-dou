@@ -1,4 +1,4 @@
-
+# coding=utf-8
 import torch
 import torch.utils.data as data
 import torchvision.transforms as transforms
@@ -7,16 +7,7 @@ import re
 import json
 
 
-
-class MyDataset(data.Dataset):
-    # wall = {
-    # 'emptyWall': 0,
-    # 'wallNorth': 1,
-    # 'wallEast': 2,
-    # 'wallSouth': 4,
-    # 'wallWest': 8,
-    # 'generator': 16
-    # }
+class MyDataset:
     useFulPlayers =[
         "5e9086246cfafa05779b7e63",
         "5e95ccaceef4d305643e777a",
@@ -39,26 +30,20 @@ class MyDataset(data.Dataset):
         "5820812c5aab41d534fec604",
         "582563857865521b372ef869",
     ]
-    def __init__(self, file_list, basis_url):
+    def __init__(self, file_list):
         self.matchList=[]
         for fileUrl in file_list:
-            file = open(basis_url+"/"+fileUrl)
+            file = open(fileUrl,'r', encoding='UTF-8')
             for matchString in file.read().split("\n"):
-                match =  json.loads(matchString)
-                isUsful = False
-                for useFulplayer in useFulPlayers:
-                    if(useFulplayer in match["players"]):
-                        isUsful = True
-                if(isUsful):
-                    self.matchList.append(match)
-                    
-                    
-    def __getitem__(self, idx):
-        input = []
-        output = []
-        
-        return input, output
-
-
-    def __len__(self):
-        return self.num_samples
+                try:
+                    match =  json.loads(matchString)
+                    isUsful = True
+                    # for useFulplayer in useFulPlayers:
+                    #     if(useFulplayer in match["players"]):
+                    #         isUsful = True
+                    if(isUsful):
+                        self.matchList.append(match)
+                except:
+                    print("read "+fileUrl+ " done")
+                    break
+                

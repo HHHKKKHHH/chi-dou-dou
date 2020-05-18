@@ -54,5 +54,6 @@
         "stdexcept": "cpp",
         "random": "cpp",
         "typeinfo": "cpp"
-    }
+    },
+    "python.pythonPath": "D:\\Miniconda3\\envs\\deepLearning\\python.exe"
 }
